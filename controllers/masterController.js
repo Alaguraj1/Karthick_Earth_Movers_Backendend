@@ -2,6 +2,7 @@ const ExpenseCategory = require('../models/ExpenseCategory');
 const IncomeSource = require('../models/IncomeSource');
 const Vehicle = require('../models/Vehicle');
 const Customer = require('../models/Customer');
+const Labour = require('../models/Labour');
 
 // @desc    Get all master data
 // @route   GET /api/master/:type
@@ -23,6 +24,9 @@ exports.getMasterData = async (req, res, next) => {
                 break;
             case 'customers':
                 data = await Customer.find({ status: 'active' }).sort('name');
+                break;
+            case 'labours':
+                data = await Labour.find({ status: 'active' }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
@@ -55,11 +59,61 @@ exports.addMasterData = async (req, res, next) => {
             case 'customers':
                 data = await Customer.create(req.body);
                 break;
+            case 'labours':
+                data = await Labour.create(req.body);
+                break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
         res.status(201).json({ success: true, data });
+    } catch (error) {
+        next(error);
+    }
+};
+// @desc    Update master data
+// @route   PUT /api/master/:type/:id
+// @access  Public
+exports.updateMasterData = async (req, res, next) => {
+    try {
+        const { type, id } = req.params;
+        let Model;
+
+        switch (type) {
+            case 'expense-categories': Model = ExpenseCategory; break;
+            case 'income-sources': Model = IncomeSource; break;
+            case 'vehicles': Model = Vehicle; break;
+            case 'customers': Model = Customer; break;
+            case 'labours': Model = Labour; break;
+            default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
+        }
+
+        const data = await Model.findByIdAndUpdate(id, req.body, { new: true });
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Delete master data (soft delete)
+// @route   DELETE /api/master/:type/:id
+// @access  Public
+exports.deleteMasterData = async (req, res, next) => {
+    try {
+        const { type, id } = req.params;
+        let Model;
+
+        switch (type) {
+            case 'expense-categories': Model = ExpenseCategory; break;
+            case 'income-sources': Model = IncomeSource; break;
+            case 'vehicles': Model = Vehicle; break;
+            case 'customers': Model = Customer; break;
+            case 'labours': Model = Labour; break;
+            default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
+        }
+
+        await Model.findByIdAndUpdate(id, { status: 'inactive' });
+        res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error) {
         next(error);
     }

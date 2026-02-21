@@ -30,7 +30,7 @@ const ExpenseSchema = new mongoose.Schema(
         },
         paymentMode: {
             type: String,
-            enum: ['Cash', 'Credit', 'Bank Transfer'],
+            enum: ['Cash', 'Credit', 'Bank Transfer', 'UPI', 'G-Pay'],
             default: 'Cash',
         },
         billUrl: {
@@ -38,6 +38,83 @@ const ExpenseSchema = new mongoose.Schema(
         },
         meterReading: {
             type: String, // Can be Odometer or Hour meter
+        },
+        // Detailed Machine Maintenance Fields
+        maintenanceType: {
+            type: String,
+        },
+        sparePartsCost: {
+            type: Number,
+        },
+        labourCharge: {
+            type: Number,
+        },
+        vendorName: {
+            type: String,
+        },
+        // Detailed Labour Wages Fields
+        labourName: {
+            type: String,
+        },
+        workType: {
+            type: String,
+        },
+        wageType: {
+            type: String,
+        },
+        advanceDeduction: {
+            type: Number,
+        },
+        netPay: {
+            type: Number,
+        },
+        siteAssigned: {
+            type: String,
+        },
+        // Detailed Explosive Cost Fields
+        site: {
+            type: String,
+        },
+        explosiveType: {
+            type: String,
+        },
+        unit: {
+            type: String,
+        },
+        supplierName: {
+            type: String,
+        },
+        licenseNumber: {
+            type: String,
+        },
+        supervisorName: {
+            type: String,
+        },
+        // Detailed Transport Charges Fields
+        transportType: {
+            type: String,
+        },
+        fromLocation: {
+            type: String,
+        },
+        toLocation: {
+            type: String,
+        },
+        driverName: {
+            type: String,
+        },
+        loadDetails: {
+            type: String,
+        },
+        // Detailed Office & Misc Fields
+        officeExpenseType: {
+            type: String,
+        },
+        paidTo: {
+            type: String,
+        },
+        billNumber: {
+            type: String,
         },
     },
     { timestamps: true }

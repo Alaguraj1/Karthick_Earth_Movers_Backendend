@@ -19,15 +19,17 @@ exports.getExpenses = async (req, res) => {
 // @desc    Create new expense
 // @route   POST /api/expenses
 exports.addExpense = async (req, res) => {
+    console.log('Incoming Expense Data:', req.body);
     try {
         const expense = await Expense.create(req.body);
         res.status(201).json({ success: true, data: expense });
     } catch (error) {
+        console.error('Error adding expense:', error.stack || error);
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ success: false, error: messages });
         } else {
-            res.status(500).json({ success: false, error: 'Server Error' });
+            res.status(500).json({ success: false, error: error.message || 'Server Error' });
         }
     }
 };

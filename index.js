@@ -25,6 +25,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const expenses = require('./routes/expenseRoutes');
 const income = require('./routes/incomeRoutes');
 const master = require('./routes/masterRoutes');
+const labour = require('./routes/labourRoutes');
 const uploads = require('./routes/uploadRoutes');
 const errorHandler = require('./middlewares/errorMiddleware');
 
@@ -32,6 +33,7 @@ const errorHandler = require('./middlewares/errorMiddleware');
 app.use('/api/expenses', expenses);
 app.use('/api/income', income);
 app.use('/api/master', master);
+app.use('/api/labour', labour);
 app.use('/api/upload', uploads);
 
 app.use(errorHandler);
