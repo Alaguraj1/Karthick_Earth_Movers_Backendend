@@ -52,6 +52,9 @@ const ExpenseSchema = new mongoose.Schema(
         vendorName: {
             type: String,
         },
+        nextServiceDate: {
+            type: Date,
+        },
         // Detailed Labour Wages Fields
         labourName: {
             type: String,

@@ -3,6 +3,8 @@ const IncomeSource = require('../models/IncomeSource');
 const Vehicle = require('../models/Vehicle');
 const Customer = require('../models/Customer');
 const Labour = require('../models/Labour');
+const StoneType = require('../models/StoneType');
+
 
 // @desc    Get all master data
 // @route   GET /api/master/:type
@@ -27,6 +29,9 @@ exports.getMasterData = async (req, res, next) => {
                 break;
             case 'labours':
                 data = await Labour.find({ status: 'active' }).sort('name');
+                break;
+            case 'stone-types':
+                data = await StoneType.find({ status: 'active' }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
@@ -62,6 +67,9 @@ exports.addMasterData = async (req, res, next) => {
             case 'labours':
                 data = await Labour.create(req.body);
                 break;
+            case 'stone-types':
+                data = await StoneType.create(req.body);
+                break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
@@ -85,6 +93,7 @@ exports.updateMasterData = async (req, res, next) => {
             case 'vehicles': Model = Vehicle; break;
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
+            case 'stone-types': Model = StoneType; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
@@ -109,6 +118,7 @@ exports.deleteMasterData = async (req, res, next) => {
             case 'vehicles': Model = Vehicle; break;
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
+            case 'stone-types': Model = StoneType; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 

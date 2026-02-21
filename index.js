@@ -27,6 +27,9 @@ const income = require('./routes/incomeRoutes');
 const master = require('./routes/masterRoutes');
 const labour = require('./routes/labourRoutes');
 const uploads = require('./routes/uploadRoutes');
+const reports = require('./routes/reportRoutes');
+const production = require('./routes/productionRoutes');
+
 const errorHandler = require('./middlewares/errorMiddleware');
 
 // Mount routers
@@ -35,6 +38,9 @@ app.use('/api/income', income);
 app.use('/api/master', master);
 app.use('/api/labour', labour);
 app.use('/api/upload', uploads);
+app.use('/api/reports', reports);
+app.use('/api/production', production);
+
 
 app.use(errorHandler);
 

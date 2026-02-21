@@ -6,17 +6,45 @@ const vehicleSchema = new mongoose.Schema({
         required: [true, 'Please add a vehicle/machine name'],
         trim: true
     },
-    vehicleNumber: {
-        type: String,
-        unique: true,
-        sparse: true, // Allow multiple nulls/empty if it's a machine without number
-        trim: true
-    },
     type: {
         type: String,
         enum: ['Vehicle', 'Machine'],
         required: true
     },
+    ownershipType: {
+        type: String,
+        enum: ['Own', 'Contract'],
+        default: 'Own'
+    },
+    contractName: String,
+    category: {
+        type: String,
+        trim: true
+    },
+    // Common fields
+    modelNumber: String,
+    registrationNumber: {
+        type: String,
+        trim: true
+    },
+    purchaseDate: Date,
+    purchaseCost: Number,
+    currentCondition: String,
+
+    // Machine specific
+    operatorName: String,
+
+    // Vehicle specific
+    vehicleNumber: {
+        type: String,
+        trim: true
+    },
+    ownerName: String,
+    driverName: String,
+    rcInsuranceDetails: String,
+    permitExpiryDate: Date,
+    mileageDetails: String,
+
     status: {
         type: String,
         enum: ['active', 'inactive', 'maintenance'],
