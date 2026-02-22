@@ -84,6 +84,15 @@ const ExpenseSchema = new mongoose.Schema(
         unit: {
             type: String,
         },
+        materials: [
+            {
+                name: String,
+                unit: String,
+                quantity: Number,
+                rate: Number,
+                amount: Number
+            }
+        ],
         supplierName: {
             type: String,
         },

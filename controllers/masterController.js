@@ -4,6 +4,7 @@ const Vehicle = require('../models/Vehicle');
 const Customer = require('../models/Customer');
 const Labour = require('../models/Labour');
 const StoneType = require('../models/StoneType');
+const ExplosiveMaterial = require('../models/ExplosiveMaterial');
 
 
 // @desc    Get all master data
@@ -32,6 +33,9 @@ exports.getMasterData = async (req, res, next) => {
                 break;
             case 'stone-types':
                 data = await StoneType.find({ status: 'active' }).sort('name');
+                break;
+            case 'explosive-materials':
+                data = await ExplosiveMaterial.find({ status: 'active' }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
@@ -70,6 +74,9 @@ exports.addMasterData = async (req, res, next) => {
             case 'stone-types':
                 data = await StoneType.create(req.body);
                 break;
+            case 'explosive-materials':
+                data = await ExplosiveMaterial.create(req.body);
+                break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
@@ -94,6 +101,7 @@ exports.updateMasterData = async (req, res, next) => {
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
+            case 'explosive-materials': Model = ExplosiveMaterial; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
@@ -119,6 +127,7 @@ exports.deleteMasterData = async (req, res, next) => {
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
+            case 'explosive-materials': Model = ExplosiveMaterial; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 

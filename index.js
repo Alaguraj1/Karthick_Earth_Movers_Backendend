@@ -33,6 +33,7 @@ const customers = require('./routes/customerRoutes');
 const sales = require('./routes/salesRoutes');
 const trips = require('./routes/tripRoutes');
 const driverPayments = require('./routes/driverPaymentRoutes');
+const vendors = require('./routes/vendorRoutes');
 
 const errorHandler = require('./middlewares/errorMiddleware');
 
@@ -48,6 +49,7 @@ app.use('/api/customers', customers);
 app.use('/api/sales', sales);
 app.use('/api/trips', trips);
 app.use('/api/driver-payments', driverPayments);
+app.use('/api/vendors', vendors);
 
 
 app.use(errorHandler);
