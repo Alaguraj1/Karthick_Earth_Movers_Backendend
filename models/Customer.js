@@ -8,6 +8,15 @@ const customerSchema = new mongoose.Schema({
     },
     phone: String,
     address: String,
+    gstNumber: String,
+    creditLimit: {
+        type: Number,
+        default: 0
+    },
+    openingBalance: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
         enum: ['active', 'inactive'],
