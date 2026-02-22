@@ -6,6 +6,11 @@ const DriverPaymentSchema = new mongoose.Schema({
         required: true,
         default: Date.now
     },
+    vehicleType: {
+        type: String,
+        enum: ['Lorry', 'Tipper', 'Tractor', 'JCB', 'Poclain', 'Other'],
+        default: 'Lorry'
+    },
     driverName: {
         type: String, // Or ref to Labour
         required: true
@@ -18,6 +23,10 @@ const DriverPaymentSchema = new mongoose.Schema({
     amount: {
         type: Number,
         required: true
+    },
+    padiKasu: {
+        type: Number,
+        default: 0
     },
     tripId: {
         type: mongoose.Schema.Types.ObjectId,

@@ -5,7 +5,16 @@ const Trip = require('../models/Trip');
 // @access  Public
 exports.getTrips = async (req, res) => {
     try {
-        const trips = await Trip.find().sort({ date: -1 });
+        const { date } = req.query;
+        let query = {};
+        if (date) {
+            const start = new Date(date);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(date);
+            end.setHours(23, 59, 59, 999);
+            query.date = { $gte: start, $lte: end };
+        }
+        const trips = await Trip.find(query).sort({ date: -1 });
         res.status(200).json({
             success: true,
             count: trips.length,
