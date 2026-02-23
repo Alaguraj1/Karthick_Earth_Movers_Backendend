@@ -25,6 +25,15 @@ const LabourSchema = new mongoose.Schema({
         enum: ['Daily', 'Monthly'],
         default: 'Daily',
     },
+    labourType: {
+        type: String,
+        enum: ['Direct', 'Vendor'],
+        default: 'Direct',
+    },
+    contractor: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'LabourContractor',
+    },
     joiningDate: {
         type: Date,
         default: Date.now,

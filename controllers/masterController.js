@@ -23,7 +23,9 @@ exports.getMasterData = async (req, res, next) => {
                 data = await IncomeSource.find({ status: 'active' }).sort('name');
                 break;
             case 'vehicles':
-                data = await Vehicle.find({ status: 'active' }).sort('name');
+                data = await Vehicle.find({ status: 'active' })
+                    .populate('contractor', 'name companyName')
+                    .sort('name');
                 break;
             case 'customers':
                 data = await Customer.find({ status: 'active' }).sort('name');

@@ -6,7 +6,7 @@ const Advance = require('../models/Advance');
 // @route   GET /api/labour
 exports.getLabours = async (req, res) => {
     try {
-        const labours = await Labour.find().sort({ name: 1 });
+        const labours = await Labour.find().populate('contractor', 'name companyName').sort({ name: 1 });
         res.status(200).json({ success: true, data: labours });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

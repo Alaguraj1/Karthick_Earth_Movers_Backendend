@@ -16,7 +16,10 @@ const vehicleSchema = new mongoose.Schema({
         enum: ['Own', 'Contract'],
         default: 'Own'
     },
-    contractName: String,
+    contractor: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TransportVendor'
+    },
     category: {
         type: String,
         trim: true
