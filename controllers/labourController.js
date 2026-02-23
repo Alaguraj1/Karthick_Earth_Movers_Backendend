@@ -136,23 +136,25 @@ exports.getWagesSummary = async (req, res) => {
             const presentDays = attendance.filter(a => a.status === 'Present').length;
             const halfDays = attendance.filter(a => a.status === 'Half Day').length;
             const totalWorkDays = presentDays + (halfDays * 0.5);
+            const totalOTHours = attendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
 
             const daysInMonth = end.getDate();
             const totalAdvance = advances.reduce((sum, a) => sum + a.amount, 0);
 
             let totalWages = 0;
+            const dailyRate = labour.wageType === 'Monthly' ? ((labour.wage || 0) / daysInMonth) : (labour.wage || 0);
+
             if (labour.wageType === 'Monthly') {
-                // Pro-rate monthly salary based on days in the month
-                const dailyRate = (labour.wage || 0) / daysInMonth;
                 totalWages = totalWorkDays * dailyRate;
             } else {
-                // Simple daily wage calculation
                 totalWages = totalWorkDays * (labour.wage || 0);
             }
 
-            const netPayable = totalWages - totalAdvance;
+            // OT Calculation: Hourly Rate = Daily Wage / 8
+            const hourlyRate = dailyRate / 8;
+            const otAmount = totalOTHours * hourlyRate;
 
-            const dailyRate = labour.wageType === 'Monthly' ? ((labour.wage || 0) / daysInMonth) : (labour.wage || 0);
+            const netPayable = (totalWages + otAmount) - totalAdvance;
 
             return {
                 labourId: labour._id,
@@ -161,8 +163,9 @@ exports.getWagesSummary = async (req, res) => {
                 wageType: labour.wageType,
                 dailyWage: labour.wage,
                 dailyRate: dailyRate.toFixed(2),
-                attendance: { present: presentDays, half: halfDays, total: totalWorkDays },
+                attendance: { present: presentDays, half: halfDays, total: totalWorkDays, otHours: totalOTHours },
                 totalWages: totalWages.toFixed(2),
+                otAmount: otAmount.toFixed(2),
                 totalAdvance,
                 netPayable: netPayable.toFixed(2)
             };

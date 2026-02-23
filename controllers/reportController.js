@@ -4,6 +4,8 @@ const Sales = require('../models/Sales');
 const Payment = require('../models/Payment');
 const Income = require('../models/Income');
 const VendorPayment = require('../models/VendorPayment');
+const Advance = require('../models/Advance');
+const Production = require('../models/Production');
 
 // @desc    Get Day Book (Daily Income & Expense)
 // @route   GET /api/reports/day-book
@@ -26,12 +28,13 @@ exports.getDayBook = async (req, res, next) => {
         };
 
         // Fetch all sources
-        const [cashSales, payments, otherIncome, expenses, vendorPayments] = await Promise.all([
+        const [cashSales, payments, otherIncome, expenses, vendorPayments, advances] = await Promise.all([
             Sales.find({ ...invoiceQuery, paymentType: 'Cash' }).populate('customer', 'name'),
             Payment.find(paymentQuery).populate('customer', 'name').populate('sales', 'invoiceNumber'),
             Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }),
             Expense.find({ ...query, paymentMode: { $ne: 'Credit' } }),
-            VendorPayment.find({ date: { $gte: startOfDay, $lte: endOfDay } })
+            VendorPayment.find({ date: { $gte: startOfDay, $lte: endOfDay } }),
+            Advance.find({ date: { $gte: startOfDay, $lte: endOfDay } }).populate('labour', 'name')
         ]);
 
         const dayBook = [];
@@ -94,6 +97,17 @@ exports.getDayBook = async (req, res, next) => {
             }
             // If there's an invoice amount but it's a credit purchase, we don't show it in Day Book (Cash flow basis)
             // Unless we want to show it as a non-cash entry. User wants "daily cash movement check".
+        });
+
+        // Map Advances
+        advances.forEach(adv => {
+            dayBook.push({
+                time: adv.date,
+                description: `Labour Advance - ${adv.labour?.name || 'Worker'}`,
+                income: 0,
+                expense: adv.amount,
+                paymentMode: adv.paymentMode || 'Cash'
+            });
         });
 
         // Sort by time
@@ -406,6 +420,82 @@ exports.getFuelTracking = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: fuelRecords
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+// @desc    Get Dashboard Summary Data
+// @route   GET /api/reports/dashboard-summary
+exports.getDashboardSummary = async (req, res, next) => {
+    try {
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const startOfWeek = new Date();
+        startOfWeek.setDate(startOfWeek.getDate() - 7);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        // 1. Revenue vs Expenses (Last 12 Months)
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+        twelveMonthsAgo.setDate(1);
+
+        const [revenueData, expenseData] = await Promise.all([
+            Sales.aggregate([
+                { $match: { invoiceDate: { $gte: twelveMonthsAgo }, status: 'active' } },
+                { $group: { _id: { month: { $month: "$invoiceDate" }, year: { $year: "$invoiceDate" } }, total: { $sum: "$grandTotal" } } },
+                { $sort: { "_id.year": 1, "_id.month": 1 } }
+            ]),
+            Expense.aggregate([
+                { $match: { date: { $gte: twelveMonthsAgo } } },
+                { $group: { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } } },
+                { $sort: { "_id.year": 1, "_id.month": 1 } }
+            ])
+        ]);
+
+        // 2. Sales By Category (Donut)
+        const salesByCategoryAgg = await Sales.aggregate([
+            { $unwind: "$items" },
+            { $group: { _id: "$items.item", total: { $sum: "$items.amount" } } },
+            { $sort: { total: -1 } },
+            { $limit: 5 }
+        ]);
+
+        // 3. Weekly Production (Bar Chart)
+        const weeklyProductionAgg = await Production.aggregate([
+            { $match: { date: { $gte: startOfWeek } } },
+            { $unwind: "$productionDetails" },
+            { $group: { _id: { $dayOfWeek: "$date" }, total: { $sum: "$productionDetails.quantity" } } },
+            { $sort: { "_id": 1 } }
+        ]);
+
+        // 4. KPIs (Cards)
+        const [monthIncome, monthExpense, totalInvoiceCount, latestSales] = await Promise.all([
+            Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
+            Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            Sales.countDocuments({ status: 'active' }),
+            Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10)
+        ]);
+
+        const income = monthIncome[0]?.total || 0;
+        const expense = monthExpense[0]?.total || 0;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                revenueChart: { revenueData, expenseData },
+                salesByCategory: salesByCategoryAgg,
+                weeklyProduction: weeklyProductionAgg,
+                summary: {
+                    monthIncome: income,
+                    monthExpense: expense,
+                    netProfit: income - expense,
+                    totalInvoices: totalInvoiceCount
+                },
+                latestSales
+            }
         });
     } catch (error) {
         next(error);

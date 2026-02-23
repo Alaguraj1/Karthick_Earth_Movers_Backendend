@@ -76,47 +76,46 @@ exports.deleteProduction = async (req, res, next) => {
 // @route   GET /api/production/stock-report
 exports.getStockReport = async (req, res, next) => {
     try {
-        // Aggregate production movements by stone type
+        const Sales = require('../models/Sales');
+
+        // 1. Aggregate total production by stone type
         const productionStats = await Production.aggregate([
             { $unwind: "$productionDetails" },
             {
                 $group: {
                     _id: "$productionDetails.stoneType",
-                    totalProduced: { $sum: "$productionDetails.quantity" },
-                    totalDispatched: { $sum: "$productionDetails.dispatchedQuantity" }
+                    totalProduced: { $sum: "$productionDetails.quantity" }
                 }
             }
         ]);
 
-        // Get the latest entries for each stone type to get current closing stock
-        // We sort by date descending to find the most recent check
-        const latestEntries = await Production.find()
-            .sort({ date: -1, createdAt: -1 })
-            .limit(50); // Get recent records to find latest for each stone type
+        // 2. Aggregate total sales by stone type
+        const salesStats = await Sales.aggregate([
+            { $unwind: "$items" },
+            {
+                $group: {
+                    _id: "$items.stoneType",
+                    totalSold: { $sum: "$items.quantity" }
+                }
+            }
+        ]);
 
         const stoneTypes = await StoneType.find({ status: 'active' });
 
         const report = stoneTypes.map(st => {
-            const stats = productionStats.find(p => p._id.toString() === st._id.toString());
-            const produced = stats ? stats.totalProduced : 0;
-            const dispatched = stats ? stats.totalDispatched : 0;
+            const pStats = productionStats.find(p => p._id.toString() === st._id.toString());
+            const sStats = salesStats.find(s => s._id.toString() === st._id.toString());
 
-            // Find the latest closing stock for this specific stone type
-            let currentStock = 0;
-            for (const prod of latestEntries) {
-                const detail = prod.productionDetails.find(d => d.stoneType.toString() === st._id.toString());
-                if (detail) {
-                    currentStock = detail.closingStock;
-                    break; // Found the latest one
-                }
-            }
+            const produced = pStats ? pStats.totalProduced : 0;
+            const sold = sStats ? sStats.totalSold : 0;
+            const balance = (st.openingStock || 0) + produced - sold;
 
             return {
                 _id: st._id,
                 name: st.name,
                 produced,
-                dispatched,
-                balance: currentStock, // Using latest closing stock as current balance
+                dispatched: sold,
+                balance: balance,
                 unit: st.unit,
                 defaultPrice: st.defaultPrice
             };

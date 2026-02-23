@@ -16,6 +16,10 @@ const explosiveMaterialSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    openingStock: {
+        type: Number,
+        default: 0
+    },
     description: String,
     status: {
         type: String,
