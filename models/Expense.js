@@ -56,6 +56,10 @@ const ExpenseSchema = new mongoose.Schema(
             type: Date,
         },
         // Detailed Labour Wages Fields
+        labourId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Labour',
+        },
         labourName: {
             type: String,
         },
@@ -128,6 +132,20 @@ const ExpenseSchema = new mongoose.Schema(
         billNumber: {
             type: String,
         },
+        // Audit & Interconnectivity
+        sourceModel: {
+            type: String,
+            enum: ['Production', 'Trip', 'Manual'],
+            default: 'Manual'
+        },
+        sourceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            description: 'Link to the production or trip entry'
+        },
+        referenceId: {
+            type: String,
+            description: 'Human readable reference (e.g. Production #102)'
+        }
     },
     { timestamps: true }
 );

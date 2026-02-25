@@ -1,4 +1,6 @@
 const Trip = require('../models/Trip');
+const Sales = require('../models/Sales');
+const StoneType = require('../models/StoneType');
 
 // @desc    Get all trips
 // @route   GET /api/trips
@@ -14,11 +16,64 @@ exports.getTrips = async (req, res) => {
             end.setHours(23, 59, 59, 999);
             query.date = { $gte: start, $lte: end };
         }
-        const trips = await Trip.find(query).sort({ date: -1 });
+        const trips = await Trip.find(query)
+            .populate('vehicleId', 'name vehicleNumber registrationNumber')
+            .populate('driverId', 'name')
+            .populate('customerId', 'name phone')
+            .populate('stoneTypeId', 'name unit')
+            .sort({ date: -1 });
+
         res.status(200).json({
             success: true,
             count: trips.length,
             data: trips
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Convert Trip to Sale
+// @route   POST /api/trips/:id/convert-to-sale
+exports.convertToSale = async (req, res, next) => {
+    try {
+        const trip = await Trip.findById(req.params.id);
+        if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
+        if (trip.isConvertedToSale) return res.status(400).json({ success: false, message: 'Trip already converted to sale' });
+
+        if (!trip.customerId) return res.status(400).json({ success: false, message: 'Trip must have a linked customer to convert to sale' });
+
+        // Generate Invoice Number
+        const count = await Sales.countDocuments();
+        const invoiceNumber = `INV-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+
+        const sale = await Sales.create({
+            invoiceNumber,
+            invoiceDate: trip.date,
+            customer: trip.customerId,
+            items: [{
+                stoneType: trip.stoneTypeId,
+                quantity: trip.loadQuantity,
+                unit: trip.loadUnit,
+                rate: trip.tripRate / trip.loadQuantity, // Estimated rate
+                amount: trip.tripRate
+            }],
+            subTotal: trip.tripRate,
+            grandTotal: trip.tripRate,
+            paymentStatus: 'Pending',
+            paymentType: 'Credit',
+            status: 'active',
+            remarks: `Auto-generated from Trip on ${new Date(trip.date).toLocaleDateString()}`
+        });
+
+        trip.isConvertedToSale = true;
+        trip.saleId = sale._id;
+        await trip.save();
+
+        res.status(201).json({
+            success: true,
+            data: sale,
+            message: 'Trip successfully converted to Sale'
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

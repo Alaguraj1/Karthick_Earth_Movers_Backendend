@@ -36,6 +36,68 @@ exports.getProductions = async (req, res, next) => {
 exports.addProduction = async (req, res, next) => {
     try {
         const production = await Production.create(req.body);
+
+        // Update Stock in StoneType
+        if (req.body.productionDetails) {
+            for (const item of req.body.productionDetails) {
+                const netChange = (parseFloat(item.quantity) || 0) - (parseFloat(item.dispatchedQuantity) || 0);
+                await StoneType.findByIdAndUpdate(item.stoneType, {
+                    $inc: { currentStock: netChange }
+                });
+            }
+        }
+
+        // Create Expense for Labour Wages (if shiftWage is provided)
+        if (req.body.shiftWage && req.body.shiftWage > 0) {
+            // Collect all worker names
+            const allNames = [];
+            if (req.body.labourDetails) {
+                allNames.push(...req.body.labourDetails.filter((l) => l.name).map((l) => l.name));
+            }
+            if (req.body.operatorDetails) {
+                allNames.push(...req.body.operatorDetails.filter((o) => o.name).map((o) => o.name));
+            }
+            await Expense.create({
+                category: 'Labour Wages',
+                amount: req.body.shiftWage,
+                date: req.body.date || new Date(),
+                labourName: allNames.length > 0 ? allNames.join(', ') : 'Production Workers',
+                siteAssigned: req.body.siteName,
+                paymentMode: 'Cash',
+                sourceModel: 'Production',
+                sourceId: production._id,
+                referenceId: `Production Shift: ${req.body.shift}`
+            });
+        }
+
+        // Create Expense for Diesel Consumption (if provided in machines)
+        if (req.body.machines) {
+            for (const machineItem of req.body.machines) {
+                if (machineItem.dieselUsed && machineItem.dieselUsed > 0) {
+                    const vehicle = await Vehicle.findById(machineItem.machineId);
+                    await Expense.create({
+                        category: 'Diesel',
+                        amount: 0, // Amount to be updated by accounts later
+                        quantity: machineItem.dieselUsed,
+                        date: req.body.date || new Date(),
+                        description: `Diesel consumption recorded via Production entry`,
+                        vehicleOrMachine: vehicle ? vehicle.name : 'Unknown',
+                        paymentMode: 'Credit',
+                        sourceModel: 'Production',
+                        sourceId: production._id,
+                        referenceId: `Production Machine: ${vehicle ? vehicle.name : 'Unknown'}`
+                    });
+                }
+
+                // Update Machine HMR
+                if (machineItem.workingHours && machineItem.workingHours > 0) {
+                    await Vehicle.findByIdAndUpdate(machineItem.machineId, {
+                        $inc: { currentHmr: machineItem.workingHours }
+                    });
+                }
+            }
+        }
+
         res.status(201).json({
             success: true,
             data: production

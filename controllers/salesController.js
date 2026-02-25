@@ -1,6 +1,8 @@
 const Sales = require('../models/Sales');
 const Payment = require('../models/Payment');
 const Customer = require('../models/Customer');
+const StoneType = require('../models/StoneType');
+const Income = require('../models/Income');
 
 // @desc    Get all sales
 // @route   GET /api/sales
@@ -47,15 +49,64 @@ exports.getSale = async (req, res, next) => {
 // @route   POST /api/sales
 exports.addSale = async (req, res, next) => {
     try {
-        // Calculate item amounts
+        // 1. Calculate item amounts and check stock
         if (req.body.items) {
-            req.body.items = req.body.items.map(item => ({
-                ...item,
-                amount: item.quantity * item.rate
-            }));
+            for (const item of req.body.items) {
+                item.amount = item.quantity * item.rate;
+
+                const stone = await StoneType.findById(item.stoneType);
+                if (stone && stone.currentStock < item.quantity) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Insufficient stock for ${stone.name}. Available: ${stone.currentStock}`
+                    });
+                }
+            }
+        }
+
+        // 2. Check Credit Limit for Credit Sales
+        const customer = await Customer.findById(req.body.customer);
+        if (req.body.paymentType === 'Credit' && customer && customer.creditLimit > 0) {
+            const pendingSales = await Sales.find({
+                customer: req.body.customer,
+                paymentStatus: { $ne: 'Paid' },
+                status: 'active'
+            });
+            const currentDebt = pendingSales.reduce((sum, s) => sum + s.balanceAmount, 0);
+            const subtotal = (req.body.items || []).reduce((sum, item) => sum + item.amount, 0);
+            const gstAmount = (subtotal * (req.body.gstPercentage || 0)) / 100;
+            const estimatedGrandTotal = subtotal + gstAmount;
+
+            if (currentDebt + estimatedGrandTotal > customer.creditLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Credit limit exceeded. Limit: ${customer.creditLimit}, Current Debt: ${currentDebt.toFixed(2)}`
+                });
+            }
         }
 
         const sale = await Sales.create(req.body);
+
+        // 3. Update Stock in StoneType
+        if (req.body.items) {
+            for (const item of req.body.items) {
+                await StoneType.findByIdAndUpdate(item.stoneType, {
+                    $inc: { currentStock: -item.quantity }
+                });
+            }
+        }
+
+        // 4. Record Income if Paid/Cash
+        if (sale.amountPaid > 0) {
+            await Income.create({
+                source: 'Stone Sales',
+                amount: sale.amountPaid,
+                date: sale.invoiceDate,
+                customerName: customer ? customer.name : 'Unknown',
+                description: `Invoice: ${sale.invoiceNumber}`
+            });
+        }
+
         const populatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
         res.status(201).json({ success: true, data: populatedSale });
     } catch (error) {
@@ -104,7 +155,7 @@ exports.deleteSale = async (req, res, next) => {
 // @route   POST /api/sales/:id/payment
 exports.addPayment = async (req, res, next) => {
     try {
-        const sale = await Sales.findById(req.params.id);
+        const sale = await Sales.findById(req.params.id).populate('customer');
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
 
         const payment = await Payment.create({
@@ -125,6 +176,15 @@ exports.addPayment = async (req, res, next) => {
         }
 
         await sale.save();
+
+        // Record Income for Payment
+        await Income.create({
+            source: 'Stone Sales',
+            amount: payment.amount,
+            date: payment.paymentDate || new Date(),
+            customerName: sale.customer ? sale.customer.name : 'Unknown',
+            description: `Payment for Invoice: ${sale.invoiceNumber}`
+        });
 
         res.status(201).json({
             success: true,

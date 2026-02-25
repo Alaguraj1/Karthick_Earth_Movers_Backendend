@@ -17,6 +17,10 @@ exports.getLabours = async (req, res) => {
 // @route   POST /api/labour
 exports.createLabour = async (req, res) => {
     try {
+        // Remove empty ObjectId fields to prevent cast errors
+        if (!req.body.contractor || req.body.contractor === '') {
+            delete req.body.contractor;
+        }
         const labour = await Labour.create(req.body);
         res.status(201).json({ success: true, data: labour });
     } catch (error) {
@@ -28,6 +32,12 @@ exports.createLabour = async (req, res) => {
 // @route   PUT /api/labour/:id
 exports.updateLabour = async (req, res) => {
     try {
+        // Remove empty ObjectId fields to prevent cast errors
+        if (!req.body.contractor || req.body.contractor === '') {
+            delete req.body.contractor;
+            // Also unset contractor in the DB if it was cleared
+            req.body.$unset = { contractor: 1 };
+        }
         const labour = await Labour.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!labour) return res.status(404).json({ success: false, error: 'Labour not found' });
         res.status(200).json({ success: true, data: labour });
@@ -125,7 +135,8 @@ exports.getWagesSummary = async (req, res) => {
         const summaries = await Promise.all(labours.map(async (labour) => {
             const attendance = await Attendance.find({
                 labour: labour._id,
-                date: { $gte: start, $lte: end }
+                date: { $gte: start, $lte: end },
+                isPaid: false
             });
 
             const advances = await Advance.find({

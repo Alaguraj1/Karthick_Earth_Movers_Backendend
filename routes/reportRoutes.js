@@ -8,7 +8,8 @@ const {
     getCashFlow,
     getProfitLoss,
     getMonthlyYearlySummary,
-    getDashboardSummary
+    getDashboardSummary,
+    getComplianceReport
 } = require('../controllers/reportController');
 
 router.get('/vehicle-cost', getVehicleCostReport);
@@ -19,5 +20,6 @@ router.get('/cash-flow', getCashFlow);
 router.get('/profit-loss', getProfitLoss);
 router.get('/summary', getMonthlyYearlySummary);
 router.get('/dashboard-summary', getDashboardSummary);
+router.get('/compliance', getComplianceReport);
 
 module.exports = router;

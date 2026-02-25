@@ -6,6 +6,7 @@ const Income = require('../models/Income');
 const VendorPayment = require('../models/VendorPayment');
 const Advance = require('../models/Advance');
 const Production = require('../models/Production');
+const StoneType = require('../models/StoneType');
 
 // @desc    Get Day Book (Daily Income & Expense)
 // @route   GET /api/reports/day-book
@@ -437,6 +438,9 @@ exports.getDashboardSummary = async (req, res, next) => {
         startOfWeek.setDate(startOfWeek.getDate() - 7);
         startOfWeek.setHours(0, 0, 0, 0);
 
+        const thirtyDaysLater = new Date();
+        thirtyDaysLater.setDate(new Date().getDate() + 30);
+
         // 1. Revenue vs Expenses (Last 12 Months)
         const twelveMonthsAgo = new Date();
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
@@ -472,11 +476,22 @@ exports.getDashboardSummary = async (req, res, next) => {
         ]);
 
         // 4. KPIs (Cards)
-        const [monthIncome, monthExpense, totalInvoiceCount, latestSales] = await Promise.all([
+        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, lowStockProducts, expiringDocuments] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             Sales.countDocuments({ status: 'active' }),
-            Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10)
+            Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10),
+            StoneType.find({ currentStock: { $lt: 500 }, status: 'active' }), // Logic: Less than 500 is low stock
+            Vehicle.find({
+                status: 'active',
+                $or: [
+                    { insuranceExpiryDate: { $lte: thirtyDaysLater } },
+                    { fitnessExpiryDate: { $lte: thirtyDaysLater } },
+                    { pollutionExpiryDate: { $lte: thirtyDaysLater } },
+                    { taxExpiryDate: { $lte: thirtyDaysLater } },
+                    { permitExpiryDate: { $lte: thirtyDaysLater } }
+                ]
+            }).limit(5)
         ]);
 
         const income = monthIncome[0]?.total || 0;
@@ -494,8 +509,66 @@ exports.getDashboardSummary = async (req, res, next) => {
                     netProfit: income - expense,
                     totalInvoices: totalInvoiceCount
                 },
+                alerts: {
+                    lowStock: lowStockProducts,
+                    compliance: expiringDocuments
+                },
                 latestSales
             }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get Compliance Expiry Report
+// @route   GET /api/reports/compliance
+exports.getComplianceReport = async (req, res, next) => {
+    try {
+        const today = new Date();
+        const thirtyDaysLater = new Date();
+        thirtyDaysLater.setDate(today.getDate() + 30);
+
+        const vehicles = await Vehicle.find({
+            status: 'active',
+            $or: [
+                { insuranceExpiryDate: { $lte: thirtyDaysLater } },
+                { fitnessExpiryDate: { $lte: thirtyDaysLater } },
+                { pollutionExpiryDate: { $lte: thirtyDaysLater } },
+                { taxExpiryDate: { $lte: thirtyDaysLater } },
+                { permitExpiryDate: { $lte: thirtyDaysLater } },
+                { rcExpiryDate: { $lte: thirtyDaysLater } }
+            ]
+        });
+
+        const alertList = [];
+
+        vehicles.forEach(v => {
+            const issues = [];
+            if (v.insuranceExpiryDate && v.insuranceExpiryDate <= thirtyDaysLater) issues.push('Insurance');
+            if (v.fitnessExpiryDate && v.fitnessExpiryDate <= thirtyDaysLater) issues.push('Fitness');
+            if (v.pollutionExpiryDate && v.pollutionExpiryDate <= thirtyDaysLater) issues.push('Pollution');
+            if (v.taxExpiryDate && v.taxExpiryDate <= thirtyDaysLater) issues.push('Tax');
+            if (v.permitExpiryDate && v.permitExpiryDate <= thirtyDaysLater) issues.push('Permit');
+            if (v.rcExpiryDate && v.rcExpiryDate <= thirtyDaysLater) issues.push('RC');
+
+            alertList.push({
+                _id: v._id,
+                name: v.name,
+                registrationNumber: v.registrationNumber || v.vehicleNumber,
+                category: v.category,
+                expiringItems: issues,
+                insuranceExpiryDate: v.insuranceExpiryDate,
+                fitnessExpiryDate: v.fitnessExpiryDate,
+                pollutionExpiryDate: v.pollutionExpiryDate,
+                status: v.status
+            });
+        });
+
+        res.status(200).json({
+            success: true,
+            count: alertList.length,
+            data: alertList
         });
     } catch (error) {
         next(error);

@@ -5,7 +5,8 @@ const {
     createTrip,
     updateTrip,
     deleteTrip,
-    getTripStats
+    getTripStats,
+    convertToSale
 } = require('../controllers/tripController');
 
 const router = express.Router();
@@ -15,6 +16,7 @@ router.route('/')
     .post(createTrip);
 
 router.get('/stats', getTripStats);
+router.post('/:id/convert-to-sale', convertToSale);
 
 router.route('/:id')
     .get(getTrip)

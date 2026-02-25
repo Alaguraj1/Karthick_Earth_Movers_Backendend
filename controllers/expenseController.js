@@ -1,4 +1,5 @@
 const Expense = require('../models/Expense');
+const Attendance = require('../models/Attendance');
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
@@ -22,6 +23,30 @@ exports.addExpense = async (req, res) => {
     console.log('Incoming Expense Data:', req.body);
     try {
         const expense = await Expense.create(req.body);
+
+        // Logic for Labour Wages Workflow Interconnectivity
+        if (expense.category === 'Labour Wages' && expense.labourId) {
+            // Find unpaid attendance for this labourer
+            const unpaidAttendance = await Attendance.find({
+                labour: expense.labourId,
+                isPaid: false
+            }).sort({ date: -1 }).limit(expense.quantity || 1);
+
+            // Mark them as paid and link to this expense
+            if (unpaidAttendance.length > 0) {
+                const ids = unpaidAttendance.map(a => a._id);
+                await Attendance.updateMany(
+                    { _id: { $in: ids } },
+                    {
+                        $set: {
+                            isPaid: true,
+                            expenseId: expense._id
+                        }
+                    }
+                );
+            }
+        }
+
         res.status(201).json({ success: true, data: expense });
     } catch (error) {
         console.error('Error adding expense:', error.stack || error);

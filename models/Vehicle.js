@@ -45,7 +45,24 @@ const vehicleSchema = new mongoose.Schema({
     ownerName: String,
     driverName: String,
     rcInsuranceDetails: String,
+    rcExpiryDate: Date,
+    insuranceExpiryDate: Date,
+    fitnessExpiryDate: Date,
+    pollutionExpiryDate: Date,
+    taxExpiryDate: Date,
     permitExpiryDate: Date,
+
+    // Machine Specific - Meter Readings
+    currentHmr: {
+        type: Number,
+        default: 0,
+        description: 'Current Hour Meter Reading'
+    },
+    serviceDueHmr: {
+        type: Number,
+        default: 0,
+        description: 'Next service due at this HMR'
+    },
     mileageDetails: String,
 
     status: {

@@ -10,13 +10,17 @@ const stoneTypeSchema = new mongoose.Schema({
     unit: {
         type: String,
         default: 'Units',
-        enum: ['Units', 'Tons', 'Kg']
+        enum: ['Units', 'Tons', 'Kg', 'Litres']
     },
     defaultPrice: {
         type: Number,
         default: 0
     },
     openingStock: {
+        type: Number,
+        default: 0
+    },
+    currentStock: {
         type: Number,
         default: 0
     },

@@ -51,8 +51,19 @@ const productionSchema = new mongoose.Schema({
 
     // Labour & Operator
     noOfWorkers: Number,
-    operatorName: String,
-    shiftWage: Number,
+    labourDetails: [{
+        labourId: { type: mongoose.Schema.ObjectId, ref: 'Labour' },
+        name: String,
+        wage: { type: Number, default: 0 },
+        wageType: { type: String, enum: ['Daily', 'Monthly'], default: 'Daily' }
+    }],
+    operatorDetails: [{
+        labourId: { type: mongoose.Schema.ObjectId, ref: 'Labour' },
+        name: String,
+        wage: { type: Number, default: 0 },
+        wageType: { type: String, enum: ['Daily', 'Monthly'], default: 'Daily' }
+    }],
+    shiftWage: Number,  // Auto-calculated total of all daily wages
 
     remarks: {
         breakdown: { type: Boolean, default: false },

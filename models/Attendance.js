@@ -23,6 +23,14 @@ const AttendanceSchema = new mongoose.Schema({
     remarks: {
         type: String,
     },
+    isPaid: {
+        type: Boolean,
+        default: false
+    },
+    expenseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Expense'
+    }
 }, { timestamps: true });
 
 // Prevent duplicate attendance for same labor on same date

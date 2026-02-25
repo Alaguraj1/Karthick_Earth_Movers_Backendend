@@ -6,20 +6,29 @@ const TripSchema = new mongoose.Schema({
         required: true,
         default: Date.now
     },
-    vehicleNumber: {
-        type: String,
-        required: true,
-        trim: true
+    vehicleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Vehicle',
+        required: true
     },
-    vehicleType: {
-        type: String,
-        enum: ['Lorry', 'Tipper', 'Tractor', 'JCB', 'Poclain', 'Other'],
-        default: 'Lorry'
+    driverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Labour'
     },
-    driverName: {
-        type: String,
-        required: true,
-        trim: true
+    customerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Customer',
+        description: 'Linked customer for auto-generating sale'
+    },
+    stoneTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'StoneType',
+        required: true
+    },
+    saleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Sales',
+        description: 'Link to the generated invoice'
     },
     fromLocation: {
         type: String,
@@ -30,11 +39,6 @@ const TripSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true
-    },
-    materialType: {
-        type: String,
-        enum: ['Jelly', 'M-Sand', 'P-Sand', 'Boulder', 'Dust', 'GSB', 'WMM'],
-        default: 'Jelly'
     },
     loadQuantity: {
         type: Number,
@@ -50,64 +54,14 @@ const TripSchema = new mongoose.Schema({
         required: true,
         description: 'Freight amount/Income from trip'
     },
-    startingPoint: {
-        type: String,
-        trim: true
-    },
-    endingPoint: {
-        type: String,
-        trim: true
-    },
-
-    // Diesel Expenses
-    dieselQuantity: {
-        type: Number,
-        default: 0
-    },
-    dieselRate: {
-        type: Number,
-        default: 0
-    },
-    dieselTotal: {
-        type: Number,
-        default: 0
-    },
-
-    // Driver Payment
-    driverPaymentType: {
-        type: String,
-        enum: ['Trip', 'Monthly'],
-        default: 'Trip'
-    },
-    driverAmount: {
-        type: Number,
-        default: 0
-    },
-    driverBata: {
-        type: Number,
-        default: 0
-    },
-
-    // Other Expenses
-    otherExpenses: {
-        type: Number,
-        default: 0
-    },
-
-    // Financial Summary
-    totalExpense: {
-        type: Number,
-        default: 0
-    },
-    netProfit: {
-        type: Number,
-        default: 0
-    },
-
     status: {
         type: String,
         enum: ['Completed', 'Pending', 'Cancelled'],
         default: 'Completed'
+    },
+    isConvertedToSale: {
+        type: Boolean,
+        default: false
     },
     notes: String
 }, { timestamps: true });
