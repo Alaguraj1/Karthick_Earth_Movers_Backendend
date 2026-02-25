@@ -1,6 +1,109 @@
 const Trip = require('../models/Trip');
 const Sales = require('../models/Sales');
 const StoneType = require('../models/StoneType');
+const Expense = require('../models/Expense');
+const Vehicle = require('../models/Vehicle');
+const Labour = require('../models/Labour');
+const TransportVendor = require('../models/TransportVendor');
+
+// Helper to sync expenses from a trip
+const syncExpensesFromTrip = async (tripId) => {
+    try {
+        const trip = await Trip.findById(tripId).populate('vehicleId').populate('driverId');
+        if (!trip) return;
+
+        // 1. Clear existing expenses for this trip to avoid duplicates
+        await Expense.deleteMany({ sourceModel: 'Trip', sourceId: trip._id });
+
+        const expenses = [];
+
+        // 2. Create Diesel Expense if details exist
+        if (trip.dieselQuantity > 0 || trip.dieselTotal > 0) {
+            expenses.push({
+                category: 'Diesel',
+                amount: trip.dieselTotal || 0,
+                quantity: trip.dieselQuantity || 0,
+                rate: trip.dieselRate || 0,
+                date: trip.date,
+                description: `Diesel consumption for Trip tracking`,
+                vehicleOrMachine: trip.vehicleId?.vehicleNumber || trip.vehicleId?.name || 'Unknown Vehicle',
+                paymentMode: 'Credit',
+                sourceModel: 'Trip',
+                sourceId: trip._id,
+                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
+            });
+        }
+
+        // 3. Create Labour Wage Expense for Driver Bata/Amount
+        const totalDriverWage = (trip.driverAmount || 0) + (trip.driverBata || 0);
+        if (totalDriverWage > 0) {
+            expenses.push({
+                category: 'Labour Wages',
+                amount: totalDriverWage,
+                date: trip.date,
+                labourId: trip.driverId._id,
+                labourName: trip.driverId?.name || 'Unknown Driver',
+                description: `Driver Bata/Wage for Trip`,
+                paymentMode: 'Cash',
+                sourceModel: 'Trip',
+                sourceId: trip._id,
+                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
+            });
+        }
+
+        // 4. Create Transport Charge Expense for Hired/Contract Vehicles
+        if (trip.vehicleId?.ownershipType === 'Contract' && trip.vehicleId?.contractor) {
+            expenses.push({
+                category: 'Transport Charges',
+                amount: trip.tripRate || 0,
+                date: trip.date,
+                description: `Freight charges (Credit) for Contract Vehicle: ${trip.vehicleId.vehicleNumber}`,
+                vendorName: trip.vehicleId.contractor,
+                paymentMode: 'Credit',
+                sourceModel: 'Trip',
+                sourceId: trip._id,
+                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
+            });
+        }
+
+        // 5. Create Other Expenses if applicable
+        if (trip.otherExpenses > 0) {
+            expenses.push({
+                category: 'Office & Misc',
+                amount: trip.otherExpenses,
+                date: trip.date,
+                description: `Miscellaneous expenses for Trip`,
+                paymentMode: 'Cash',
+                sourceModel: 'Trip',
+                sourceId: trip._id,
+                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
+            });
+        }
+
+        if (expenses.length > 0) {
+            await Expense.insertMany(expenses);
+        }
+    } catch (error) {
+        console.error('Error syncing trip expenses:', error);
+    }
+};
+
+// Helper to sync vendor outstanding balance
+const syncVendorBalanceFromTrip = async (trip, action) => {
+    try {
+        const vehicle = await Vehicle.findById(trip.vehicleId);
+        if (vehicle && vehicle.ownershipType === 'Contract' && vehicle.contractor) {
+            const amount = parseFloat(trip.tripRate) || 0;
+            const delta = action === 'add' ? amount : -amount;
+
+            await TransportVendor.findByIdAndUpdate(vehicle.contractor, {
+                $inc: { outstandingBalance: delta }
+            });
+        }
+    } catch (error) {
+        console.error('Error syncing vendor balance:', error);
+    }
+};
 
 // @desc    Get all trips
 // @route   GET /api/trips
@@ -17,7 +120,7 @@ exports.getTrips = async (req, res) => {
             query.date = { $gte: start, $lte: end };
         }
         const trips = await Trip.find(query)
-            .populate('vehicleId', 'name vehicleNumber registrationNumber')
+            .populate('vehicleId', 'name vehicleNumber registrationNumber category ownershipType contractor')
             .populate('driverId', 'name')
             .populate('customerId', 'name phone')
             .populate('stoneTypeId', 'name unit')
@@ -63,7 +166,11 @@ exports.convertToSale = async (req, res, next) => {
             paymentStatus: 'Pending',
             paymentType: 'Credit',
             status: 'active',
-            remarks: `Auto-generated from Trip on ${new Date(trip.date).toLocaleDateString()}`
+            vehicleId: trip.vehicleId,
+            driverId: trip.driverId,
+            fromLocation: trip.fromLocation,
+            toLocation: trip.toLocation,
+            notes: `Auto-generated from Trip on ${new Date(trip.date).toLocaleDateString()}`
         });
 
         trip.isConvertedToSale = true;
@@ -101,6 +208,13 @@ exports.getTrip = async (req, res) => {
 exports.createTrip = async (req, res) => {
     try {
         const trip = await Trip.create(req.body);
+
+        // SYNC VENDOR BALANCE
+        await syncVendorBalanceFromTrip(trip, 'add');
+
+        // SYNC EXPENSES
+        await syncExpensesFromTrip(trip._id);
+
         res.status(201).json({ success: true, data: trip });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -112,15 +226,25 @@ exports.createTrip = async (req, res) => {
 // @access  Public
 exports.updateTrip = async (req, res) => {
     try {
-        const trip = await Trip.findById(req.params.id);
-        if (!trip) {
+        const oldTrip = await Trip.findById(req.params.id);
+        if (!oldTrip) {
             return res.status(404).json({ success: false, message: 'Trip not found' });
         }
 
-        Object.assign(trip, req.body);
-        await trip.save();
+        // 1. Remove old balance
+        await syncVendorBalanceFromTrip(oldTrip, 'remove');
 
-        res.status(200).json({ success: true, data: trip });
+        // 2. Update trip
+        Object.assign(oldTrip, req.body);
+        const updatedTrip = await oldTrip.save();
+
+        // 3. Add new balance
+        await syncVendorBalanceFromTrip(updatedTrip, 'add');
+
+        // 4. SYNC EXPENSES
+        await syncExpensesFromTrip(updatedTrip._id);
+
+        res.status(200).json({ success: true, data: updatedTrip });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
     }
@@ -135,7 +259,16 @@ exports.deleteTrip = async (req, res) => {
         if (!trip) {
             return res.status(404).json({ success: false, message: 'Trip not found' });
         }
+        const tripId = trip._id;
+
+        // 1. Remove balance
+        await syncVendorBalanceFromTrip(trip, 'remove');
+
         await trip.deleteOne();
+
+        // Remove associated expenses
+        await Expense.deleteMany({ sourceModel: 'Trip', sourceId: tripId });
+
         res.status(200).json({ success: true, data: {} });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

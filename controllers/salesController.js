@@ -3,6 +3,7 @@ const Payment = require('../models/Payment');
 const Customer = require('../models/Customer');
 const StoneType = require('../models/StoneType');
 const Income = require('../models/Income');
+const Trip = require('../models/Trip');
 
 // @desc    Get all sales
 // @route   GET /api/sales
@@ -20,6 +21,8 @@ exports.getSales = async (req, res, next) => {
 
         const sales = await Sales.find(query)
             .populate('customer', 'name phone address gstNumber')
+            .populate('vehicleId', 'vehicleNumber name registrationNumber')
+            .populate('driverId', 'name')
             .sort({ invoiceDate: -1 });
 
         res.status(200).json({ success: true, count: sales.length, data: sales });
@@ -34,7 +37,9 @@ exports.getSale = async (req, res, next) => {
     try {
         const sale = await Sales.findById(req.params.id)
             .populate('customer', 'name phone address gstNumber')
-            .populate('items.stoneType', 'name unit');
+            .populate('items.stoneType', 'name unit')
+            .populate('vehicleId', 'vehicleNumber name registrationNumber')
+            .populate('driverId', 'name');
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
 
         const payments = await Payment.find({ sales: req.params.id }).sort({ paymentDate: -1 });
@@ -107,6 +112,29 @@ exports.addSale = async (req, res, next) => {
             });
         }
 
+        // 5. AUTO-CREATE TRIP if Vehicle is selected
+        if (req.body.vehicleId) {
+            const totalQty = (req.body.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const firstItem = req.body.items && req.body.items.length > 0 ? req.body.items[0] : null;
+
+            await Trip.create({
+                date: sale.invoiceDate,
+                vehicleId: req.body.vehicleId,
+                driverId: req.body.driverId,
+                customerId: req.body.customer,
+                stoneTypeId: firstItem ? firstItem.stoneType : null,
+                saleId: sale._id,
+                fromLocation: req.body.fromLocation || 'Quarry',
+                toLocation: req.body.toLocation || 'Site',
+                loadQuantity: totalQty,
+                loadUnit: firstItem ? firstItem.unit : 'Tons',
+                tripRate: sale.grandTotal, // Income from this delivery
+                isConvertedToSale: true,
+                status: 'Completed',
+                notes: `Auto-generated from Invoice: ${sale.invoiceNumber}`
+            });
+        }
+
         const populatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
         res.status(201).json({ success: true, data: populatedSale });
     } catch (error) {
@@ -132,6 +160,32 @@ exports.updateSale = async (req, res, next) => {
         Object.assign(sale, req.body);
         await sale.save();
 
+        // Sync with Trip
+        if (sale.vehicleId) {
+            const totalQty = (sale.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const firstItem = sale.items && sale.items.length > 0 ? sale.items[0] : null;
+
+            const tripData = {
+                date: sale.invoiceDate,
+                vehicleId: sale.vehicleId,
+                driverId: sale.driverId,
+                customerId: sale.customer,
+                stoneTypeId: firstItem ? firstItem.stoneType : null,
+                fromLocation: sale.fromLocation || 'Quarry',
+                toLocation: sale.toLocation || 'Site',
+                loadQuantity: totalQty,
+                loadUnit: firstItem?.unit || 'Tons',
+                tripRate: sale.grandTotal,
+                notes: `Updated from Invoice: ${sale.invoiceNumber}`
+            };
+
+            await Trip.findOneAndUpdate(
+                { saleId: sale._id },
+                { $set: tripData, isConvertedToSale: true, status: 'Completed' },
+                { upsert: true, new: true }
+            );
+        }
+
         const updatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
         res.status(200).json({ success: true, data: updatedSale });
     } catch (error) {
@@ -145,7 +199,11 @@ exports.deleteSale = async (req, res, next) => {
     try {
         const sale = await Sales.findByIdAndUpdate(req.params.id, { status: 'cancelled' }, { new: true });
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
-        res.status(200).json({ success: true, message: 'Sale cancelled' });
+
+        // Also cancel the linked trip
+        await Trip.findOneAndUpdate({ saleId: sale._id }, { status: 'Cancelled' });
+
+        res.status(200).json({ success: true, message: 'Sale and linked trip cancelled' });
     } catch (error) {
         next(error);
     }

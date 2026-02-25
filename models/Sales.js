@@ -89,6 +89,19 @@ const salesSchema = new mongoose.Schema({
         default: 'Unpaid'
     },
     notes: String,
+    vehicleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Vehicle'
+    },
+    driverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Labour'
+    },
+    fromLocation: {
+        type: String,
+        default: 'Quarry'
+    },
+    toLocation: String,
     status: {
         type: String,
         enum: ['active', 'cancelled'],

@@ -2,6 +2,7 @@ const Production = require('../models/Production');
 const StoneType = require('../models/StoneType');
 const Vehicle = require('../models/Vehicle');
 const Expense = require('../models/Expense');
+const Attendance = require('../models/Attendance');
 
 // @desc    Get all production entries
 // @route   GET /api/production
@@ -31,56 +32,99 @@ exports.getProductions = async (req, res, next) => {
     }
 };
 
-// @desc    Add production entry
-// @route   POST /api/production
-exports.addProduction = async (req, res, next) => {
+// Helper function to sync attendance
+const syncAttendanceFromProduction = async (date, labourDetails, operatorDetails) => {
     try {
-        const production = await Production.create(req.body);
+        const workers = [];
+        if (labourDetails) workers.push(...labourDetails.filter(l => l.labourId));
+        if (operatorDetails) workers.push(...operatorDetails.filter(o => o.labourId));
 
-        // Update Stock in StoneType
-        if (req.body.productionDetails) {
-            for (const item of req.body.productionDetails) {
-                const netChange = (parseFloat(item.quantity) || 0) - (parseFloat(item.dispatchedQuantity) || 0);
-                await StoneType.findByIdAndUpdate(item.stoneType, {
-                    $inc: { currentStock: netChange }
-                });
+        if (workers.length === 0) return;
+
+        const attendanceDate = new Date(date);
+        attendanceDate.setHours(0, 0, 0, 0);
+
+        const operations = workers.map(worker => ({
+            updateOne: {
+                filter: { labour: worker.labourId, date: attendanceDate },
+                update: {
+                    $set: {
+                        status: 'Present',
+                        remarks: 'Marked automatically via Production Entry'
+                    }
+                },
+                upsert: true
             }
-        }
+        }));
 
-        // Create Expense for Labour Wages (if shiftWage is provided)
-        if (req.body.shiftWage && req.body.shiftWage > 0) {
+        await Attendance.bulkWrite(operations);
+    } catch (error) {
+        console.error('Attendance sync failed:', error);
+    }
+};
+
+// Helper to get latest diesel rate
+const getLatestDieselRate = async () => {
+    try {
+        const latestDieselEntry = await Expense.findOne({
+            category: 'Diesel',
+            rate: { $gt: 0 }
+        }).sort({ date: -1, createdAt: -1 });
+
+        return latestDieselEntry ? latestDieselEntry.rate : 0;
+    } catch (error) {
+        console.error('Error fetching diesel rate:', error);
+        return 0;
+    }
+};
+
+// Helper function to sync expenses from production (Internal use)
+const syncExpensesFromProduction = async (production) => {
+    try {
+        // Clear existing expenses for this production to avoid duplicates
+        await Expense.deleteMany({ sourceModel: 'Production', sourceId: production._id });
+
+        const dieselRate = await getLatestDieselRate();
+
+        // 1. Create Expense for Labour Wages (if shiftWage is provided)
+        if (production.shiftWage && production.shiftWage > 0) {
             // Collect all worker names
             const allNames = [];
-            if (req.body.labourDetails) {
-                allNames.push(...req.body.labourDetails.filter((l) => l.name).map((l) => l.name));
+            if (production.labourDetails) {
+                allNames.push(...production.labourDetails.filter((l) => l.name).map((l) => l.name));
             }
-            if (req.body.operatorDetails) {
-                allNames.push(...req.body.operatorDetails.filter((o) => o.name).map((o) => o.name));
+            if (production.operatorDetails) {
+                allNames.push(...production.operatorDetails.filter((o) => o.name).map((o) => o.name));
             }
             await Expense.create({
                 category: 'Labour Wages',
-                amount: req.body.shiftWage,
-                date: req.body.date || new Date(),
+                amount: production.shiftWage,
+                date: production.date || new Date(),
                 labourName: allNames.length > 0 ? allNames.join(', ') : 'Production Workers',
-                siteAssigned: req.body.siteName,
+                siteAssigned: production.siteName,
                 paymentMode: 'Cash',
                 sourceModel: 'Production',
                 sourceId: production._id,
-                referenceId: `Production Shift: ${req.body.shift}`
+                referenceId: `Production Shift: ${production.shift}`
             });
         }
 
-        // Create Expense for Diesel Consumption (if provided in machines)
-        if (req.body.machines) {
-            for (const machineItem of req.body.machines) {
+        // 2. Create Expense for Diesel Consumption (if provided in machines)
+        if (production.machines) {
+            for (const machineItem of production.machines) {
                 if (machineItem.dieselUsed && machineItem.dieselUsed > 0) {
                     const vehicle = await Vehicle.findById(machineItem.machineId);
+
+                    // Auto-calculate amount if rate exists
+                    const calculatedAmount = dieselRate > 0 ? (parseFloat(machineItem.dieselUsed) * dieselRate) : 0;
+
                     await Expense.create({
                         category: 'Diesel',
-                        amount: 0, // Amount to be updated by accounts later
+                        amount: calculatedAmount,
                         quantity: machineItem.dieselUsed,
-                        date: req.body.date || new Date(),
-                        description: `Diesel consumption recorded via Production entry`,
+                        rate: dieselRate,
+                        date: production.date || new Date(),
+                        description: `Diesel consumption recorded via Production entry (Rate: ${dieselRate})`,
                         vehicleOrMachine: vehicle ? vehicle.name : 'Unknown',
                         paymentMode: 'Credit',
                         sourceModel: 'Production',
@@ -95,6 +139,32 @@ exports.addProduction = async (req, res, next) => {
                         $inc: { currentHmr: machineItem.workingHours }
                     });
                 }
+            }
+        }
+    } catch (error) {
+        console.error('Error syncing production expenses:', error);
+    }
+};
+
+// @desc    Add production entry
+// @route   POST /api/production
+exports.addProduction = async (req, res, next) => {
+    try {
+        const production = await Production.create(req.body);
+
+        // SYNC ATTENDANCE: Mark all workers as Present
+        await syncAttendanceFromProduction(req.body.date, req.body.labourDetails, req.body.operatorDetails);
+
+        // SYNC EXPENSES & STOCK
+        await syncExpensesFromProduction(production);
+
+        // Update Stock in StoneType
+        if (req.body.productionDetails) {
+            for (const item of req.body.productionDetails) {
+                const netChange = (parseFloat(item.quantity) || 0) - (parseFloat(item.dispatchedQuantity) || 0);
+                await StoneType.findByIdAndUpdate(item.stoneType, {
+                    $inc: { currentStock: netChange }
+                });
             }
         }
 
@@ -116,6 +186,13 @@ exports.updateProduction = async (req, res, next) => {
             runValidators: true
         });
         if (!production) return res.status(404).json({ success: false, message: 'Not found' });
+
+        // SYNC ATTENDANCE
+        await syncAttendanceFromProduction(req.body.date, req.body.labourDetails, req.body.operatorDetails);
+
+        // SYNC EXPENSES
+        await syncExpensesFromProduction(production);
+
         res.status(200).json({ success: true, data: production });
     } catch (error) {
         next(error);

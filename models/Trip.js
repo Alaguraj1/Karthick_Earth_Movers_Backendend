@@ -63,7 +63,15 @@ const TripSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    notes: String
+    notes: String,
+    dieselQuantity: { type: Number, default: 0 },
+    dieselRate: { type: Number, default: 0 },
+    dieselTotal: { type: Number, default: 0 },
+    driverAmount: { type: Number, default: 0 },
+    driverBata: { type: Number, default: 0 },
+    otherExpenses: { type: Number, default: 0 },
+    totalExpense: { type: Number, default: 0 },
+    netProfit: { type: Number, default: 0 }
 }, { timestamps: true });
 
 // Calculate profit before saving
