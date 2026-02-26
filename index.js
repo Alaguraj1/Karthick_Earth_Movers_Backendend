@@ -28,7 +28,7 @@ const master = require('./routes/masterRoutes');
 const labour = require('./routes/labourRoutes');
 const uploads = require('./routes/uploadRoutes');
 const reports = require('./routes/reportRoutes');
-const production = require('./routes/productionRoutes');
+
 const customers = require('./routes/customerRoutes');
 const sales = require('./routes/salesRoutes');
 const trips = require('./routes/tripRoutes');
@@ -44,7 +44,7 @@ app.use('/api/master', master);
 app.use('/api/labour', labour);
 app.use('/api/upload', uploads);
 app.use('/api/reports', reports);
-app.use('/api/production', production);
+
 app.use('/api/customers', customers);
 app.use('/api/sales', sales);
 app.use('/api/trips', trips);

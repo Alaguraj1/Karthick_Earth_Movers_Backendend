@@ -17,24 +17,7 @@ const syncExpensesFromTrip = async (tripId) => {
 
         const expenses = [];
 
-        // 2. Create Diesel Expense if details exist
-        if (trip.dieselQuantity > 0 || trip.dieselTotal > 0) {
-            expenses.push({
-                category: 'Diesel',
-                amount: trip.dieselTotal || 0,
-                quantity: trip.dieselQuantity || 0,
-                rate: trip.dieselRate || 0,
-                date: trip.date,
-                description: `Diesel consumption for Trip tracking`,
-                vehicleOrMachine: trip.vehicleId?.vehicleNumber || trip.vehicleId?.name || 'Unknown Vehicle',
-                paymentMode: 'Credit',
-                sourceModel: 'Trip',
-                sourceId: trip._id,
-                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
-            });
-        }
-
-        // 3. Create Labour Wage Expense for Driver Bata/Amount
+        // 2. Create Labour Wage Expense for Driver Bata/Amount
         const totalDriverWage = (trip.driverAmount || 0) + (trip.driverBata || 0);
         if (totalDriverWage > 0) {
             expenses.push({
@@ -51,7 +34,7 @@ const syncExpensesFromTrip = async (tripId) => {
             });
         }
 
-        // 4. Create Transport Charge Expense for Hired/Contract Vehicles
+        // 3. Create Transport Charge Expense for Hired/Contract Vehicles
         if (trip.vehicleId?.ownershipType === 'Contract' && trip.vehicleId?.contractor) {
             expenses.push({
                 category: 'Transport Charges',
@@ -66,7 +49,7 @@ const syncExpensesFromTrip = async (tripId) => {
             });
         }
 
-        // 5. Create Other Expenses if applicable
+        // 4. Create Other Expenses if applicable
         if (trip.otherExpenses > 0) {
             expenses.push({
                 category: 'Office & Misc',

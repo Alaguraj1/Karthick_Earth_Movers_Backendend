@@ -28,7 +28,9 @@ const vehicleSchema = new mongoose.Schema({
     modelNumber: String,
     registrationNumber: {
         type: String,
-        trim: true
+        trim: true,
+        unique: true,
+        sparse: true
     },
     purchaseDate: Date,
     purchaseCost: Number,
@@ -40,7 +42,9 @@ const vehicleSchema = new mongoose.Schema({
     // Vehicle specific
     vehicleNumber: {
         type: String,
-        trim: true
+        trim: true,
+        unique: true,
+        sparse: true
     },
     ownerName: String,
     driverName: String,

@@ -54,18 +54,10 @@ exports.getSale = async (req, res, next) => {
 // @route   POST /api/sales
 exports.addSale = async (req, res, next) => {
     try {
-        // 1. Calculate item amounts and check stock
+        // 1. Calculate item amounts
         if (req.body.items) {
             for (const item of req.body.items) {
                 item.amount = item.quantity * item.rate;
-
-                const stone = await StoneType.findById(item.stoneType);
-                if (stone && stone.currentStock < item.quantity) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Insufficient stock for ${stone.name}. Available: ${stone.currentStock}`
-                    });
-                }
             }
         }
 
@@ -91,15 +83,6 @@ exports.addSale = async (req, res, next) => {
         }
 
         const sale = await Sales.create(req.body);
-
-        // 3. Update Stock in StoneType
-        if (req.body.items) {
-            for (const item of req.body.items) {
-                await StoneType.findByIdAndUpdate(item.stoneType, {
-                    $inc: { currentStock: -item.quantity }
-                });
-            }
-        }
 
         // 4. Record Income if Paid/Cash
         if (sale.amountPaid > 0) {

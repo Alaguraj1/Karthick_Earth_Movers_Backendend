@@ -5,7 +5,7 @@ const Payment = require('../models/Payment');
 const Income = require('../models/Income');
 const VendorPayment = require('../models/VendorPayment');
 const Advance = require('../models/Advance');
-const Production = require('../models/Production');
+
 const StoneType = require('../models/StoneType');
 
 // @desc    Get Day Book (Daily Income & Expense)
@@ -467,13 +467,7 @@ exports.getDashboardSummary = async (req, res, next) => {
             { $limit: 5 }
         ]);
 
-        // 3. Weekly Production (Bar Chart)
-        const weeklyProductionAgg = await Production.aggregate([
-            { $match: { date: { $gte: startOfWeek } } },
-            { $unwind: "$productionDetails" },
-            { $group: { _id: { $dayOfWeek: "$date" }, total: { $sum: "$productionDetails.quantity" } } },
-            { $sort: { "_id": 1 } }
-        ]);
+
 
         // 4. KPIs (Cards)
         const [monthIncome, monthExpense, totalInvoiceCount, latestSales, lowStockProducts, expiringDocuments] = await Promise.all([
@@ -502,7 +496,7 @@ exports.getDashboardSummary = async (req, res, next) => {
             data: {
                 revenueChart: { revenueData, expenseData },
                 salesByCategory: salesByCategoryAgg,
-                weeklyProduction: weeklyProductionAgg,
+
                 summary: {
                     monthIncome: income,
                     monthExpense: expense,

@@ -65,6 +65,23 @@ exports.addMasterData = async (req, res, next) => {
                 data = await IncomeSource.create(req.body);
                 break;
             case 'vehicles':
+                // Prevent duplicate vehicles
+                if (req.body.registrationNumber || req.body.vehicleNumber) {
+                    const existingVehicle = await Vehicle.findOne({
+                        $or: [
+                            ...(req.body.registrationNumber ? [{ registrationNumber: { $regex: new RegExp(`^${req.body.registrationNumber.trim()}$`, 'i') } }] : []),
+                            ...(req.body.vehicleNumber ? [{ vehicleNumber: { $regex: new RegExp(`^${req.body.vehicleNumber.trim()}$`, 'i') } }] : [])
+                        ],
+                        status: 'active'
+                    });
+
+                    if (existingVehicle) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Vehicle with number ${req.body.registrationNumber || req.body.vehicleNumber} already exists.`
+                        });
+                    }
+                }
                 data = await Vehicle.create(req.body);
                 break;
             case 'customers':
