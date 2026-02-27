@@ -16,14 +16,7 @@ const stoneTypeSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    openingStock: {
-        type: Number,
-        default: 0
-    },
-    currentStock: {
-        type: Number,
-        default: 0
-    },
+
     description: String,
     status: {
         type: String,

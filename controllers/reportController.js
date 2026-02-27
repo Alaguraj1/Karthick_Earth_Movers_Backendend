@@ -470,12 +470,11 @@ exports.getDashboardSummary = async (req, res, next) => {
 
 
         // 4. KPIs (Cards)
-        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, lowStockProducts, expiringDocuments] = await Promise.all([
+        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, expiringDocuments] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             Sales.countDocuments({ status: 'active' }),
             Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10),
-            StoneType.find({ currentStock: { $lt: 500 }, status: 'active' }), // Logic: Less than 500 is low stock
             Vehicle.find({
                 status: 'active',
                 $or: [
@@ -504,7 +503,6 @@ exports.getDashboardSummary = async (req, res, next) => {
                     totalInvoices: totalInvoiceCount
                 },
                 alerts: {
-                    lowStock: lowStockProducts,
                     compliance: expiringDocuments
                 },
                 latestSales
