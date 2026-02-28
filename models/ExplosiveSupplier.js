@@ -24,9 +24,11 @@ const ExplosiveSupplierSchema = new mongoose.Schema({
     panNumber: String,
     authorizedDealerId: String,
 
-    supplyItems: [String],
+    supplyItems: [{
+        material: String,
+        rate: { type: Number, default: 0 }
+    }],
 
-    ratePerUnit: { type: Number, default: 0 },
     paymentTerms: String,
     creditLimit: { type: Number, default: 0 },
 

@@ -131,8 +131,11 @@ exports.getWagesSummary = async (req, res) => {
         const start = new Date(year, month - 1, 1);
         const end = new Date(year, month, 0, 23, 59, 59, 999);
 
-        const labours = await Labour.find({ status: 'active' });
-        const summaries = await Promise.all(labours.map(async (labour) => {
+        const labours = await Labour.find({ status: 'active' }).populate('contractor', 'name companyName');
+        const directSummaries = [];
+        const vendorSummariesMap = {};
+
+        await Promise.all(labours.map(async (labour) => {
             const attendance = await Attendance.find({
                 labour: labour._id,
                 date: { $gte: start, $lte: end },
@@ -167,7 +170,7 @@ exports.getWagesSummary = async (req, res) => {
 
             const netPayable = (totalWages + otAmount) - totalAdvance;
 
-            return {
+            const summaryObj = {
                 labourId: labour._id,
                 name: labour.name,
                 workType: labour.workType,
@@ -180,9 +183,48 @@ exports.getWagesSummary = async (req, res) => {
                 totalAdvance,
                 netPayable: netPayable.toFixed(2)
             };
+
+            if (labour.labourType === 'Vendor' && labour.contractor) {
+                const cId = labour.contractor._id.toString();
+                if (!vendorSummariesMap[cId]) {
+                    vendorSummariesMap[cId] = {
+                        isVendorGroup: true,
+                        contractorId: cId,
+                        contractorName: labour.contractor.name,
+                        companyName: labour.contractor.companyName,
+                        attendance: { present: 0, half: 0, total: 0, otHours: 0 },
+                        totalWages: 0,
+                        otAmount: 0,
+                        totalAdvance: 0,
+                        netPayable: 0,
+                        labourCount: 0
+                    };
+                }
+
+                vendorSummariesMap[cId].attendance.present += presentDays;
+                vendorSummariesMap[cId].attendance.half += halfDays;
+                vendorSummariesMap[cId].attendance.total += totalWorkDays;
+                vendorSummariesMap[cId].attendance.otHours += totalOTHours;
+                vendorSummariesMap[cId].totalWages += totalWages;
+                vendorSummariesMap[cId].otAmount += otAmount;
+                vendorSummariesMap[cId].totalAdvance += totalAdvance;
+                vendorSummariesMap[cId].netPayable += netPayable;
+                vendorSummariesMap[cId].labourCount += 1;
+            } else {
+                directSummaries.push(summaryObj);
+            }
         }));
 
-        res.status(200).json({ success: true, data: summaries });
+        const vendorSummaries = Object.values(vendorSummariesMap).map((v) => ({
+            ...v,
+            totalWages: v.totalWages.toFixed(2),
+            otAmount: v.otAmount.toFixed(2),
+            netPayable: v.netPayable.toFixed(2)
+        }));
+
+        const finalSummaries = [...directSummaries, ...vendorSummaries];
+
+        res.status(200).json({ success: true, data: finalSummaries });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -204,6 +246,33 @@ exports.getLabourReport = async (req, res) => {
                 advances
             }
         });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// @desc    Mark wages paid
+// @route   POST /api/labour/mark-wages-paid
+exports.markWagesPaid = async (req, res) => {
+    try {
+        const { month, year, labourId, contractorId } = req.body;
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0, 23, 59, 59, 999);
+
+        let filter = { date: { $gte: start, $lte: end }, isPaid: false };
+        if (labourId) {
+            filter.labour = labourId;
+            await Attendance.updateMany(filter, { $set: { isPaid: true } });
+        } else if (contractorId) {
+            const labours = await Labour.find({ contractor: contractorId, labourType: 'Vendor' });
+            const ids = labours.map(l => l._id);
+            filter.labour = { $in: ids };
+            await Attendance.updateMany(filter, { $set: { isPaid: true } });
+        } else {
+            return res.status(400).json({ success: false, error: 'Must provide labourId or contractorId' });
+        }
+
+        res.status(200).json({ success: true, message: 'Wages marked as paid' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

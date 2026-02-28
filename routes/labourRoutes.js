@@ -10,7 +10,8 @@ const {
     getAdvances,
     addAdvance,
     getWagesSummary,
-    getLabourReport
+    getLabourReport,
+    markWagesPaid
 } = require('../controllers/labourController');
 
 // Labour Profile Routes
@@ -25,6 +26,7 @@ router.route('/advance').get(getAdvances).post(addAdvance);
 
 // Wages & Report
 router.route('/wages-summary').get(getWagesSummary);
+router.route('/mark-wages-paid').post(markWagesPaid);
 router.route('/report/:id').get(getLabourReport);
 
 module.exports = router;
