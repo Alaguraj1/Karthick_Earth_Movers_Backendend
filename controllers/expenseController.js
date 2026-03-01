@@ -5,11 +5,31 @@ const Attendance = require('../models/Attendance');
 // @route   GET /api/expenses
 exports.getExpenses = async (req, res) => {
     try {
-        const { category } = req.query;
+        const { category, month, year } = req.query;
         let query = {};
         if (category) {
             query.category = category;
         }
+
+        if (month && year) {
+            if (category === 'Labour Wages') {
+                const start = new Date(year, month - 1, 1);
+                const end = new Date(year, month, 0, 23, 59, 59);
+
+                query.$or = [
+                    { salaryMonth: parseInt(month), salaryYear: parseInt(year) },
+                    {
+                        salaryMonth: { $exists: false },
+                        date: { $gte: start, $lte: end }
+                    }
+                ];
+            } else {
+                const start = new Date(year, month - 1, 1);
+                const end = new Date(year, month, 0, 23, 59, 59);
+                query.date = { $gte: start, $lte: end };
+            }
+        }
+
         const expenses = await Expense.find(query).sort({ date: -1 });
         res.status(200).json({ success: true, count: expenses.length, data: expenses });
     } catch (error) {
@@ -26,11 +46,21 @@ exports.addExpense = async (req, res) => {
 
         // Logic for Labour Wages Workflow Interconnectivity
         if (expense.category === 'Labour Wages' && expense.labourId) {
-            // Find unpaid attendance for this labourer
-            const unpaidAttendance = await Attendance.find({
+            let filterQuery = {
                 labour: expense.labourId,
                 isPaid: false
-            }).sort({ date: -1 }).limit(expense.quantity || 1);
+            };
+
+            if (expense.salaryMonth && expense.salaryYear) {
+                const start = new Date(expense.salaryYear, expense.salaryMonth - 1, 1);
+                const end = new Date(expense.salaryYear, expense.salaryMonth, 0, 23, 59, 59, 999);
+                filterQuery.date = { $gte: start, $lte: end };
+            }
+
+            // Find unpaid attendance for this labourer
+            const unpaidAttendance = await Attendance.find(filterQuery)
+                .sort({ date: -1 })
+                .limit(expense.quantity || 1);
 
             // Mark them as paid and link to this expense
             if (unpaidAttendance.length > 0) {

@@ -63,9 +63,11 @@ exports.deleteLabour = async (req, res) => {
 exports.getAttendance = async (req, res) => {
     try {
         const { date } = req.query;
-        const start = new Date(date);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(date);
+        const normalizedDate = new Date(date);
+        normalizedDate.setHours(0, 0, 0, 0);
+
+        const start = new Date(normalizedDate);
+        const end = new Date(normalizedDate);
         end.setHours(23, 59, 59, 999);
 
         const attendance = await Attendance.find({
@@ -82,12 +84,14 @@ exports.getAttendance = async (req, res) => {
 // @route   POST /api/labour/attendance
 exports.markAttendance = async (req, res) => {
     try {
-        const { date, attendanceData } = req.body; // attendanceData: [{labour, status, overtimeHours}]
+        const { date, attendanceData } = req.body;
+        const normalizedDate = new Date(date);
+        normalizedDate.setHours(0, 0, 0, 0);
 
         const operations = attendanceData.map(item => ({
             updateOne: {
-                filter: { labour: item.labour, date: new Date(date).setHours(0, 0, 0, 0) },
-                update: { ...item, date: new Date(date).setHours(0, 0, 0, 0) },
+                filter: { labour: item.labour, date: normalizedDate },
+                update: { ...item, date: normalizedDate },
                 upsert: true
             }
         }));
@@ -136,21 +140,29 @@ exports.getWagesSummary = async (req, res) => {
         const vendorSummariesMap = {};
 
         await Promise.all(labours.map(async (labour) => {
-            const attendance = await Attendance.find({
+            // Find ALL attendance for this period (both paid and unpaid)
+            const allAttendance = await Attendance.find({
                 labour: labour._id,
-                date: { $gte: start, $lte: end },
-                isPaid: false
+                date: { $gte: start, $lte: end }
             });
+
+            // Filter for unpaid for wage calculation
+            const unpaidAttendance = allAttendance.filter(a => !a.isPaid);
 
             const advances = await Advance.find({
                 labour: labour._id,
                 date: { $gte: start, $lte: end }
             });
 
-            const presentDays = attendance.filter(a => a.status === 'Present').length;
-            const halfDays = attendance.filter(a => a.status === 'Half Day').length;
+            const presentDays = unpaidAttendance.filter(a => a.status === 'Present').length;
+            const halfDays = unpaidAttendance.filter(a => a.status === 'Half Day').length;
             const totalWorkDays = presentDays + (halfDays * 0.5);
-            const totalOTHours = attendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
+            const totalOTHours = unpaidAttendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
+
+            // Total stats including paid ones for transparency
+            const totalPresent = allAttendance.filter(a => a.status === 'Present').length;
+            const totalHalf = allAttendance.filter(a => a.status === 'Half Day').length;
+            const totalDaysAll = totalPresent + (totalHalf * 0.5);
 
             const daysInMonth = end.getDate();
             const totalAdvance = advances.reduce((sum, a) => sum + a.amount, 0);
@@ -177,7 +189,15 @@ exports.getWagesSummary = async (req, res) => {
                 wageType: labour.wageType,
                 dailyWage: labour.wage,
                 dailyRate: dailyRate.toFixed(2),
-                attendance: { present: presentDays, half: halfDays, total: totalWorkDays, otHours: totalOTHours },
+                attendance: {
+                    present: presentDays,
+                    half: halfDays,
+                    total: totalWorkDays,
+                    otHours: totalOTHours,
+                    totalPresentAll: totalPresent,
+                    totalHalfAll: totalHalf,
+                    totalDaysAll: totalDaysAll
+                },
                 totalWages: totalWages.toFixed(2),
                 otAmount: otAmount.toFixed(2),
                 totalAdvance,

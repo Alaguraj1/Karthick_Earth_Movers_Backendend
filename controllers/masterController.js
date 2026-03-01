@@ -17,27 +17,27 @@ exports.getMasterData = async (req, res, next) => {
 
         switch (type) {
             case 'expense-categories':
-                data = await ExpenseCategory.find({ status: 'active' }).sort('name');
+                data = await ExpenseCategory.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             case 'income-sources':
-                data = await IncomeSource.find({ status: 'active' }).sort('name');
+                data = await IncomeSource.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             case 'vehicles':
-                data = await Vehicle.find({ status: 'active' })
+                data = await Vehicle.find({ status: { $ne: 'inactive' } })
                     .populate('contractor', 'name companyName')
                     .sort('name');
                 break;
             case 'customers':
-                data = await Customer.find({ status: 'active' }).sort('name');
+                data = await Customer.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             case 'labours':
-                data = await Labour.find({ status: 'active' }).sort('name');
+                data = await Labour.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             case 'stone-types':
-                data = await StoneType.find({ status: 'active' }).sort('name');
+                data = await StoneType.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             case 'explosive-materials':
-                data = await ExplosiveMaterial.find({ status: 'active' }).sort('name');
+                data = await ExplosiveMaterial.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });

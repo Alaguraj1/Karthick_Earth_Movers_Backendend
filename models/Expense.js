@@ -75,6 +75,15 @@ const ExpenseSchema = new mongoose.Schema(
         netPay: {
             type: Number,
         },
+        otAmount: {
+            type: Number,
+        },
+        salaryMonth: {
+            type: Number,
+        },
+        salaryYear: {
+            type: Number,
+        },
         siteAssigned: {
             type: String,
         },
