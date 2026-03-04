@@ -54,12 +54,17 @@ exports.getSale = async (req, res, next) => {
 // @route   POST /api/sales
 exports.addSale = async (req, res, next) => {
     try {
-        // 1. Calculate item amounts
+        // 0. Clean up empty ObjectId strings
+        if (!req.body.vehicleId || req.body.vehicleId === '') delete req.body.vehicleId;
+        if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
         if (req.body.items) {
-            for (const item of req.body.items) {
+            req.body.items.forEach(item => {
+                if (!item.stoneType || item.stoneType === '') delete item.stoneType;
                 item.amount = item.quantity * item.rate;
-            }
+            });
         }
+
+        // 1. Calculate item amounts
 
         // 2. Check Credit Limit for Credit Sales
         const customer = await Customer.findById(req.body.customer);
@@ -104,6 +109,7 @@ exports.addSale = async (req, res, next) => {
                 date: sale.invoiceDate,
                 vehicleId: req.body.vehicleId,
                 driverId: req.body.driverId,
+                driverName: req.body.driverName,
                 customerId: req.body.customer,
                 stoneTypeId: firstItem ? firstItem.stoneType : null,
                 saleId: sale._id,
@@ -132,10 +138,13 @@ exports.updateSale = async (req, res, next) => {
         const sale = await Sales.findById(req.params.id);
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
 
-        // Calculate item amounts
+        // Clean up empty ObjectId strings
+        if (!req.body.vehicleId || req.body.vehicleId === '') req.body.vehicleId = null;
+        if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
         if (req.body.items) {
             req.body.items = req.body.items.map(item => ({
                 ...item,
+                stoneType: (item.stoneType === '' || !item.stoneType) ? null : item.stoneType,
                 amount: item.quantity * item.rate
             }));
         }
@@ -152,6 +161,7 @@ exports.updateSale = async (req, res, next) => {
                 date: sale.invoiceDate,
                 vehicleId: sale.vehicleId,
                 driverId: sale.driverId,
+                driverName: sale.driverName,
                 customerId: sale.customer,
                 stoneTypeId: firstItem ? firstItem.stoneType : null,
                 fromLocation: sale.fromLocation || 'Quarry',

@@ -15,6 +15,7 @@ const TripSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Labour'
     },
+    driverName: String,
     customerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Customer',

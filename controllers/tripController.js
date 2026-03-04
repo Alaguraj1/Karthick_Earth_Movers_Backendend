@@ -190,6 +190,12 @@ exports.getTrip = async (req, res) => {
 // @access  Public
 exports.createTrip = async (req, res) => {
     try {
+        // Clean up empty ObjectId strings
+        if (!req.body.vehicleId || req.body.vehicleId === '') delete req.body.vehicleId;
+        if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
+        if (!req.body.stoneTypeId || req.body.stoneTypeId === '') delete req.body.stoneTypeId;
+        if (!req.body.customerId || req.body.customerId === '') delete req.body.customerId;
+
         const trip = await Trip.create(req.body);
 
         // SYNC VENDOR BALANCE
@@ -216,6 +222,12 @@ exports.updateTrip = async (req, res) => {
 
         // 1. Remove old balance
         await syncVendorBalanceFromTrip(oldTrip, 'remove');
+
+        // Clean up empty ObjectId strings
+        if (!req.body.vehicleId || req.body.vehicleId === '') req.body.vehicleId = null;
+        if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
+        if (!req.body.stoneTypeId || req.body.stoneTypeId === '') req.body.stoneTypeId = null;
+        if (!req.body.customerId || req.body.customerId === '') req.body.customerId = null;
 
         // 2. Update trip
         Object.assign(oldTrip, req.body);

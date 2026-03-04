@@ -88,7 +88,24 @@ exports.markAttendance = async (req, res) => {
         const normalizedDate = new Date(date);
         normalizedDate.setHours(0, 0, 0, 0);
 
-        const operations = attendanceData.map(item => ({
+        // Fetch labourers to check joining dates
+        const labourIds = attendanceData.map(d => d.labour);
+        const labours = await Labour.find({ _id: { $in: labourIds } });
+
+        const validAttendanceData = attendanceData.filter(item => {
+            const labour = labours.find(l => l._id.toString() === item.labour.toString());
+            if (!labour || !labour.joiningDate) return true;
+
+            const joinDate = new Date(labour.joiningDate);
+            joinDate.setHours(0, 0, 0, 0);
+            return normalizedDate >= joinDate;
+        });
+
+        if (validAttendanceData.length === 0) {
+            return res.status(200).json({ success: true, message: 'No valid attendance records to save (check joining dates)' });
+        }
+
+        const operations = validAttendanceData.map(item => ({
             updateOne: {
                 filter: { labour: item.labour, date: normalizedDate },
                 update: { ...item, date: normalizedDate },
@@ -97,7 +114,7 @@ exports.markAttendance = async (req, res) => {
         }));
 
         await Attendance.bulkWrite(operations);
-        res.status(200).json({ success: true, message: 'Attendance marked successfully' });
+        res.status(200).json({ success: true, message: `Attendance marked successfully (${validAttendanceData.length} records)` });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }

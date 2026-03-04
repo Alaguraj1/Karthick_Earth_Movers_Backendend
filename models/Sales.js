@@ -97,6 +97,7 @@ const salesSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Labour'
     },
+    driverName: String,
     fromLocation: {
         type: String,
         default: 'Quarry'

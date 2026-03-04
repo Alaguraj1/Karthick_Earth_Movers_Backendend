@@ -5,6 +5,7 @@ const Customer = require('../models/Customer');
 const Labour = require('../models/Labour');
 const StoneType = require('../models/StoneType');
 const ExplosiveMaterial = require('../models/ExplosiveMaterial');
+const VehicleCategory = require('../models/VehicleCategory');
 
 
 // @desc    Get all master data
@@ -38,6 +39,9 @@ exports.getMasterData = async (req, res, next) => {
                 break;
             case 'explosive-materials':
                 data = await ExplosiveMaterial.find({ status: { $ne: 'inactive' } }).sort('name');
+                break;
+            case 'vehicle-categories':
+                data = await VehicleCategory.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
@@ -96,6 +100,9 @@ exports.addMasterData = async (req, res, next) => {
             case 'explosive-materials':
                 data = await ExplosiveMaterial.create(req.body);
                 break;
+            case 'vehicle-categories':
+                data = await VehicleCategory.create(req.body);
+                break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
@@ -121,6 +128,7 @@ exports.updateMasterData = async (req, res, next) => {
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
             case 'explosive-materials': Model = ExplosiveMaterial; break;
+            case 'vehicle-categories': Model = VehicleCategory; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
@@ -147,6 +155,7 @@ exports.deleteMasterData = async (req, res, next) => {
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
             case 'explosive-materials': Model = ExplosiveMaterial; break;
+            case 'vehicle-categories': Model = VehicleCategory; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
