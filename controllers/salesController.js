@@ -323,3 +323,106 @@ exports.getPendingPayments = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Bulk add sales from parsed Excel/CSV
+// @route   POST /api/sales/bulk
+exports.bulkAddSales = async (req, res, next) => {
+    try {
+        const { salesData } = req.body;
+        if (!salesData || !Array.isArray(salesData)) {
+            return res.status(400).json({ success: false, message: 'Invalid sales data format' });
+        }
+
+        // 1. Fetch Master Data for lookups
+        const customers = await Customer.find({ status: 'active' });
+        const stoneTypes = await StoneType.find({ status: 'active' });
+
+        const customerMap = {};
+        customers.forEach(c => customerMap[c.name.toLowerCase().trim()] = c._id);
+
+        const stoneTypeMap = {};
+        stoneTypes.forEach(s => stoneTypeMap[s.name.toLowerCase().trim()] = { id: s._id, defaultRate: s.defaultPrice, unit: s.unit });
+
+        const processedSales = [];
+        const validationErrors = [];
+
+        for (let i = 0; i < salesData.length; i++) {
+            const item = salesData[i];
+            const rowNum = i + 1;
+
+            if (!item.customerName) {
+                validationErrors.push(`Row ${rowNum}: Customer Name is missing`);
+                continue;
+            }
+
+            const custId = customerMap[item.customerName.toLowerCase().trim()];
+            if (!custId) {
+                validationErrors.push(`Row ${rowNum}: Customer "${item.customerName}" not found in Master List`);
+                continue;
+            }
+
+            const stoneKey = (item.item || '').toLowerCase().trim();
+            const stone = stoneTypeMap[stoneKey];
+            if (!stone) {
+                validationErrors.push(`Row ${rowNum}: Item/Stone "${item.item}" not found in Master List`);
+                continue;
+            }
+
+            const qty = parseFloat(item.quantity) || 0;
+            const rate = parseFloat(item.rate) || stone.defaultRate || 0;
+            const amt = qty * rate;
+
+            const saleObj = {
+                invoiceDate: item.invoiceDate || new Date(),
+                customer: custId,
+                paymentType: (item.paymentType || 'Cash').charAt(0).toUpperCase() + (item.paymentType || 'Cash').slice(1).toLowerCase(),
+                gstPercentage: parseFloat(item.gstPercentage) || 0,
+                fromLocation: item.fromLocation || 'Quarry',
+                toLocation: item.toLocation || '',
+                notes: item.notes || '',
+                items: [{
+                    item: item.item,
+                    stoneType: stone.id,
+                    quantity: qty,
+                    unit: item.unit || stone.unit || 'Tons',
+                    rate: rate,
+                    amount: amt
+                }],
+                amountPaid: 0 // Handled by pre-save
+            };
+
+            processedSales.push(saleObj);
+        }
+
+        if (validationErrors.length > 0) {
+            return res.status(400).json({ success: false, message: 'Validation Errors', errors: validationErrors });
+        }
+
+        // 3. Save All
+        const savedSales = await Sales.create(processedSales);
+
+        // 4. Record Income for Paid/Cash sales
+        for (const sale of savedSales) {
+            if (sale.amountPaid > 0) {
+                const customer = customers.find(c => c._id.toString() === sale.customer.toString());
+                await Income.create({
+                    source: 'Stone Sales',
+                    amount: sale.amountPaid,
+                    date: sale.invoiceDate,
+                    customerName: customer ? customer.name : 'Unknown',
+                    description: `Bulk Invoice: ${sale.invoiceNumber}`
+                });
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Successfully uploaded ${savedSales.length} sales records`,
+            count: savedSales.length
+        });
+
+    } catch (error) {
+        console.error('Bulk Upload Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
