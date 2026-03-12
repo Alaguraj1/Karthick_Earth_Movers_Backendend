@@ -325,7 +325,7 @@ exports.getVehicleCostReport = async (req, res, next) => {
                         $sum: { $cond: [{ $eq: ["$category", "Labour Wages"] }, "$amount", 0] }
                     },
                     otherCosts: {
-                        $sum: { $cond: [{ $nin: ["$category", ["Diesel", "Machine Maintenance", "Labour Wages"]] }, "$amount", 0] }
+                        $sum: { $cond: [{ $not: [{ $in: ["$category", ["Diesel", "Machine Maintenance", "Labour Wages"]] }] }, "$amount", 0] }
                     },
                     totalCost: { $sum: "$amount" }
                 }
@@ -342,7 +342,7 @@ exports.getVehicleCostReport = async (req, res, next) => {
             const expenseData = expenseAgg.find(e =>
                 e._id === displayName ||
                 e._id === v.name ||
-                (plateNum && e._id.includes(plateNum))
+                (plateNum && e._id && e._id.includes(plateNum))
             ) || {
                 fuelCost: 0,
                 maintenanceCost: 0,
@@ -360,8 +360,6 @@ exports.getVehicleCostReport = async (req, res, next) => {
         });
 
         // Add any expense records that don't match a master vehicle (e.g. external transport)
-        const matchedVehicleNames = report.map(r => r._id);
-        const unmatchedExpenses = expenseAgg.filter(e => e._id && !matchedVehicleNames.some(name => name === e._id || (e._id.includes && e._id.includes(e._id))));
 
         // Actually simpler logic for unmatched:
         expenseAgg.forEach(e => {
@@ -388,10 +386,14 @@ exports.getVehicleCostReport = async (req, res, next) => {
 // @access  Public
 exports.getMaintenanceHistory = async (req, res, next) => {
     try {
-        const { vehicleOrMachine } = req.query;
+        const { vehicleOrMachine, startDate, endDate } = req.query;
         let query = { category: 'Machine Maintenance' };
         if (vehicleOrMachine) {
             query.vehicleOrMachine = vehicleOrMachine;
+        }
+
+        if (startDate && endDate) {
+            query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
         }
 
         const history = await Expense.find(query).sort({ date: -1 });
@@ -410,10 +412,14 @@ exports.getMaintenanceHistory = async (req, res, next) => {
 // @access  Public
 exports.getFuelTracking = async (req, res, next) => {
     try {
-        const { vehicleOrMachine } = req.query;
+        const { vehicleOrMachine, startDate, endDate } = req.query;
         let query = { category: 'Diesel' };
         if (vehicleOrMachine) {
             query.vehicleOrMachine = vehicleOrMachine;
+        }
+
+        if (startDate && endDate) {
+            query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
         }
 
         const fuelRecords = await Expense.find(query).sort({ date: -1 });

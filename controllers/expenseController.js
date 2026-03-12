@@ -6,13 +6,15 @@ const Labour = require('../models/Labour');
 // @route   GET /api/expenses
 exports.getExpenses = async (req, res) => {
     try {
-        const { category, month, year } = req.query;
+        const { category, month, year, startDate, endDate } = req.query;
         let query = {};
         if (category) {
             query.category = category;
         }
 
-        if (month && year) {
+        if (startDate && endDate) {
+            query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+        } else if (month && year) {
             if (category === 'Labour Wages') {
                 const start = new Date(year, month - 1, 1);
                 const end = new Date(year, month, 0, 23, 59, 59);
