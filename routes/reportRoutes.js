@@ -12,6 +12,11 @@ const {
     getComplianceReport
 } = require('../controllers/reportController');
 
+const { protect, authorize } = require('../middlewares/authMiddleware');
+
+router.use(protect);
+router.use(authorize('Owner'));
+
 router.get('/vehicle-cost', getVehicleCostReport);
 router.get('/maintenance-history', getMaintenanceHistory);
 router.get('/fuel-tracking', getFuelTracking);
