@@ -50,12 +50,11 @@ exports.updateProduction = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Log not found' });
     }
 
-    production = await MachineProduction.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
-        runValidators: true
-    });
+    // Update record manually to trigger pre-save hooks
+    Object.assign(production, req.body);
+    await production.save();
 
-    // Update Machine's current HMR if it's the latest entry (simplified for now)
+    // Update Machine's current HMR if it's the latest entry
     if (req.body.endHmr) {
         await Vehicle.findByIdAndUpdate(production.machine, { currentHmr: req.body.endHmr });
     }
