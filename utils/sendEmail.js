@@ -1,28 +1,34 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 const sendEmail = async (options) => {
-    // 1. Create a transporter
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, // true for 465, false for 587 (STARTTLS)
-        auth: {
-            user: process.env.SMTP_EMAIL, // Your Gmail address
-            pass: process.env.SMTP_PASSWORD // App Password (NOT your real password)
+    const vercelEmailUrl = process.env.EMAIL_SERVICE_URL; // e.g. https://karthick-earth-movers.vercel.app/api/send-email
+    const secret = process.env.EMAIL_API_SECRET; // Shared secret between backend and frontend
+
+    if (!vercelEmailUrl || !secret) {
+        throw new Error('EMAIL_SERVICE_URL or EMAIL_API_SECRET environment variable is missing');
+    }
+
+    const response = await axios.post(
+        vercelEmailUrl,
+        {
+            to: options.email,
+            subject: options.subject,
+            text: options.message,
+            html: options.html,
+        },
+        {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-secret': secret,
+            },
         }
-    });
+    );
 
-    // 2. Define the email options
-    const message = {
-        from: `"${process.env.FROM_NAME || 'Karthick Earth Movers'}" <${process.env.FROM_EMAIL || process.env.SMTP_EMAIL}>`,
-        to: options.email,
-        subject: options.subject,
-        text: options.message,
-        html: options.html // Allows sending rich HTML emails
-    };
+    if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to send email');
+    }
 
-    // 3. Send the email
-    await transporter.sendMail(message);
+    return response.data;
 };
 
 module.exports = sendEmail;
