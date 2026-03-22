@@ -144,6 +144,30 @@ exports.addAdvance = async (req, res) => {
     }
 };
 
+// @desc    Update advance
+// @route   PUT /api/labour/advance/:id
+exports.updateAdvance = async (req, res) => {
+    try {
+        const advance = await Advance.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        if (!advance) return res.status(404).json({ success: false, error: 'Advance record not found' });
+        res.status(200).json({ success: true, data: advance });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
+// @desc    Delete advance
+// @route   DELETE /api/labour/advance/:id
+exports.deleteAdvance = async (req, res) => {
+    try {
+        const advance = await Advance.findByIdAndDelete(req.params.id);
+        if (!advance) return res.status(404).json({ success: false, error: 'Advance record not found' });
+        res.status(200).json({ success: true, data: {} });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
 // @desc    Wages summary calculation
 // @route   GET /api/labour/wages-summary?month=MM&year=YYYY
 exports.getWagesSummary = async (req, res) => {

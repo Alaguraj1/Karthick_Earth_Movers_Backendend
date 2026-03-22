@@ -11,7 +11,9 @@ const {
     addAdvance,
     getWagesSummary,
     getLabourReport,
-    markWagesPaid
+    markWagesPaid,
+    updateAdvance,
+    deleteAdvance
 } = require('../controllers/labourController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
@@ -36,6 +38,10 @@ router.route('/attendance')
 router.route('/advance')
     .get(getAdvances)
     .post(checkEditWindow(Advance), addAdvance);
+
+router.route('/advance/:id')
+    .put(checkEditWindow(Advance), updateAdvance)
+    .delete(authorize('Owner'), checkEditWindow(Advance), deleteAdvance);
 
 // Wages & Report
 router.route('/wages-summary').get(getWagesSummary);
