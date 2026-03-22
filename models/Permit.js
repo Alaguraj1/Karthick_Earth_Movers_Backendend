@@ -6,11 +6,10 @@ const permitSchema = new mongoose.Schema({
         required: [true, 'Please add a permit number'],
         trim: true
     },
-    vehicleId: {
+    vehicleIds: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Vehicle',
-        required: [true, 'Please link a vehicle']
-    },
+        ref: 'Vehicle'
+    }],
     date: {
         type: Date,
         required: [true, 'Please add a date'],

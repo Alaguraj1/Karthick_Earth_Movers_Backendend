@@ -140,6 +140,7 @@ exports.getTrips = async (req, res) => {
             .populate('customerId', 'name phone')
             .populate('stoneTypeId', 'name unit')
             .populate('saleId', 'invoiceNumber')
+            .populate('permitId', 'permitNumber')
             .sort({ date: -1 });
 
         res.status(200).json({
