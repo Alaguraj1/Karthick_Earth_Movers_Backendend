@@ -74,7 +74,19 @@ exports.getAttendance = async (req, res) => {
             date: { $gte: start, $lte: end }
         }).populate('labour', 'name');
 
-        res.status(200).json({ success: true, data: attendance });
+        // Logic for "Once paid, the whole month is locked"
+        // Find which labours have ANY paid attendance in this month
+        const startOfMonth = new Date(normalizedDate.getFullYear(), normalizedDate.getMonth(), 1);
+        const endOfMonth = new Date(normalizedDate.getFullYear(), normalizedDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const paidRecordsInMonth = await Attendance.find({
+            date: { $gte: startOfMonth, $lte: endOfMonth },
+            isPaid: true
+        });
+
+        const monthPaidLabours = [...new Set(paidRecordsInMonth.map(a => a.labour.toString()))];
+
+        res.status(200).json({ success: true, data: attendance, monthPaidLabours });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -105,16 +117,48 @@ exports.markAttendance = async (req, res) => {
             return res.status(200).json({ success: true, message: 'No valid attendance records to save (check joining dates)' });
         }
 
-        const operations = validAttendanceData.map(item => ({
+        // Calculate the start and end of the month for the requested date
+        const startOfMonth = new Date(normalizedDate.getFullYear(), normalizedDate.getMonth(), 1);
+        const endOfMonth = new Date(normalizedDate.getFullYear(), normalizedDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        // Find which labours are already paid for THIS month
+        const paidAttendanceInMonth = await Attendance.find({
+            labour: { $in: labourIds },
+            date: { $gte: startOfMonth, $lte: endOfMonth },
+            isPaid: true
+        });
+
+        const lockedLabourIds = [...new Set(paidAttendanceInMonth.map(a => a.labour.toString()))];
+
+        // Filter out attendance for locked labours
+        const finalToSave = validAttendanceData.filter(item => !lockedLabourIds.includes(item.labour.toString()));
+        const skippedCount = validAttendanceData.length - finalToSave.length;
+
+        if (finalToSave.length === 0 && skippedCount > 0) {
+            return res.status(403).json({
+                success: false,
+                message: 'All selected workers have already been paid for this month and cannot be modified.'
+            });
+        }
+
+        const operations = finalToSave.map(item => ({
             updateOne: {
-                filter: { labour: item.labour, date: normalizedDate },
+                filter: { labour: item.labour, date: normalizedDate, isPaid: false },
                 update: { ...item, date: normalizedDate },
                 upsert: true
             }
         }));
 
-        await Attendance.bulkWrite(operations);
-        res.status(200).json({ success: true, message: `Attendance marked successfully (${validAttendanceData.length} records)` });
+        if (operations.length > 0) {
+            await Attendance.bulkWrite(operations);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: skippedCount > 0
+                ? `Attendance saved. ${skippedCount} items skipped because month is already closed/paid.`
+                : `Attendance marked successfully`
+        });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }
@@ -206,10 +250,11 @@ exports.getWagesSummary = async (req, res) => {
             const totalDaysAll = totalPresent + (totalHalf * 0.5);
 
             const daysInMonth = end.getDate();
+            const monthlyDenominator = req.query.workingDays ? parseFloat(req.query.workingDays) : daysInMonth;
             const totalAdvance = advances.reduce((sum, a) => sum + a.amount, 0);
 
             let totalWages = 0;
-            const dailyRate = labour.wageType === 'Monthly' ? ((labour.wage || 0) / daysInMonth) : (labour.wage || 0);
+            const dailyRate = labour.wageType === 'Monthly' ? ((labour.wage || 0) / (monthlyDenominator || 30)) : (labour.wage || 0);
 
             if (labour.wageType === 'Monthly') {
                 totalWages = totalWorkDays * dailyRate;

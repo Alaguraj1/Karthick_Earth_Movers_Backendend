@@ -90,6 +90,9 @@ const ExpenseSchema = new mongoose.Schema(
         salaryYear: {
             type: Number,
         },
+        totalWorkingDays: {
+            type: Number,
+        },
         siteAssigned: {
             type: String,
         },

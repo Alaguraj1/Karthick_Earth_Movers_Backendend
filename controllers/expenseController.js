@@ -125,6 +125,15 @@ exports.deleteExpense = async (req, res) => {
         if (!expense) {
             return res.status(404).json({ success: false, error: 'No expense found' });
         }
+
+        // If this was a labour wage expense, reset associated attendance records
+        if (expense.category === 'Labour Wages') {
+            await Attendance.updateMany(
+                { expenseId: expense._id },
+                { $set: { isPaid: false }, $unset: { expenseId: 1 } }
+            );
+        }
+
         await Expense.findByIdAndDelete(req.params.id);
         res.status(200).json({ success: true, data: {} });
     } catch (error) {
