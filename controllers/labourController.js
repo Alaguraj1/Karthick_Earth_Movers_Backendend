@@ -339,12 +339,24 @@ exports.getWagesSummary = async (req, res) => {
 };
 
 // @desc    Detailed Labour report
-// @route   GET /api/labour/report/:id
+// @route   GET /api/labour/report/:id?month=MM&year=YYYY
 exports.getLabourReport = async (req, res) => {
     try {
+        const { month, year } = req.query;
         const labour = await Labour.findById(req.params.id);
-        const attendance = await Attendance.find({ labour: req.params.id }).sort({ date: -1 });
-        const advances = await Advance.find({ labour: req.params.id }).sort({ date: -1 });
+        
+        let attendanceQuery = { labour: req.params.id };
+        let advancesQuery = { labour: req.params.id };
+
+        if (month && year) {
+            const start = new Date(year, month - 1, 1);
+            const end = new Date(year, month, 0, 23, 59, 59, 999);
+            attendanceQuery.date = { $gte: start, $lte: end };
+            advancesQuery.date = { $gte: start, $lte: end };
+        }
+
+        const attendance = await Attendance.find(attendanceQuery).sort({ date: -1 });
+        const advances = await Advance.find(advancesQuery).sort({ date: -1 });
 
         res.status(200).json({
             success: true,
