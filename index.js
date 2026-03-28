@@ -46,6 +46,19 @@ const machineProduction = require('./routes/machineProductionRoutes');
 
 const errorHandler = require('./middlewares/errorMiddleware');
 
+// Health Check Endpoint
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'success', 
+        message: 'Server is healthy and running smoothly', 
+        timestamp: new Date().toISOString() 
+    });
+});
+
+app.get('/', (req, res) => {
+    res.status(200).send('API is running...');
+});
+
 // Mount routers
 app.use('/api/auth', auth);
 app.use('/api/users', users);
