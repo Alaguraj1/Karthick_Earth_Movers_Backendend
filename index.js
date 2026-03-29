@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Enable CORS explicitly for your frontend domains
 app.use(cors({
-    origin: ['https://karthickearthmovers.com', 'https://karthick-earth-movers.vercel.app', 'http://localhost:3000'],
+    origin: ['https://karthickearthmovers.com', 'https://www.karthickearthmovers.com', 'https://karthick-earth-movers.vercel.app', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
