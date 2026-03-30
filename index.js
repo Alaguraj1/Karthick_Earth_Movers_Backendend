@@ -3,12 +3,16 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
+const { initBackupJob } = require('./jobs/backupJob');
 
 // Load env vars
 dotenv.config();
 
 // Connect to database
 connectDB();
+
+// Initialize scheduled tasks (cron jobs)
+initBackupJob();
 
 const app = express();
 
