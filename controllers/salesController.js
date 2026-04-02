@@ -204,6 +204,9 @@ exports.deleteSale = async (req, res, next) => {
         // Also cancel the linked trip
         await Trip.findOneAndUpdate({ saleId: sale._id }, { status: 'Cancelled' });
 
+        // Also delete the linked income record (if any)
+        await Income.findOneAndDelete({ description: new RegExp(`Invoice: ${sale.invoiceNumber}`) });
+
         res.status(200).json({ success: true, message: 'Sale and linked trip cancelled' });
     } catch (error) {
         next(error);

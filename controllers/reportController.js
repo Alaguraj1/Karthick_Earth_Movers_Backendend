@@ -8,6 +8,7 @@ const Advance = require('../models/Advance');
 
 const StoneType = require('../models/StoneType');
 const Attendance = require('../models/Attendance');
+const Labour = require('../models/Labour');
 
 // @desc    Get Day Book (Daily Income & Expense)
 // @route   GET /api/reports/day-book
@@ -33,7 +34,7 @@ exports.getDayBook = async (req, res, next) => {
         const [cashSales, payments, otherIncome, expenses, vendorPayments, advances] = await Promise.all([
             Sales.find({ ...invoiceQuery, paymentType: 'Cash' }).populate('customer', 'name'),
             Payment.find(paymentQuery).populate('customer', 'name').populate('sales', 'invoiceNumber'),
-            Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }),
+            Income.find({ date: { $gte: startOfDay, $lte: endOfDay }, source: { $ne: 'Stone Sales' } }),
             Expense.find({ ...query, paymentMode: { $ne: 'Credit' } }),
             VendorPayment.find({ date: { $gte: startOfDay, $lte: endOfDay } }),
             Advance.find({ date: { $gte: startOfDay, $lte: endOfDay } }).populate('labour', 'name')
@@ -143,7 +144,7 @@ exports.getCashFlow = async (req, res, next) => {
         const [oldCashSales, oldPayments, oldOtherIncome, oldExpenses, oldVendorPayments] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $lt: start }, paymentType: 'Cash', status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Payment.aggregate([{ $match: { paymentDate: { $lt: start } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-            Income.aggregate([{ $match: { date: { $lt: start } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            Income.aggregate([{ $match: { date: { $lt: start }, source: { $ne: 'Stone Sales' } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             Expense.aggregate([{ $match: { date: { $lt: start }, paymentMode: { $ne: 'Credit' } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             VendorPayment.aggregate([{ $match: { date: { $lt: start } } }, { $group: { _id: null, total: { $sum: "$paidAmount" } } }])
         ]);
@@ -156,7 +157,7 @@ exports.getCashFlow = async (req, res, next) => {
         const [periodCashSales, periodPayments, periodOtherIncome, periodExpenses, periodVendorPayments] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: start, $lte: end }, paymentType: 'Cash', status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Payment.aggregate([{ $match: { paymentDate: { $gte: start, $lte: end } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-            Income.aggregate([{ $match: { date: { $gte: start, $lte: end } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            Income.aggregate([{ $match: { date: { $gte: start, $lte: end }, source: { $ne: 'Stone Sales' } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: start, $lte: end }, paymentMode: { $ne: 'Credit' } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             VendorPayment.aggregate([{ $match: { date: { $gte: start, $lte: end } } }, { $group: { _id: null, total: { $sum: "$paidAmount" } } }])
         ]);
@@ -196,9 +197,9 @@ exports.getProfitLoss = async (req, res, next) => {
             { $group: { _id: null, totalSales: { $sum: "$grandTotal" } } }
         ]);
 
-        // Aggregate Other Income
+        // Aggregate Other Income (Exclude Stone Sales as they are handled above)
         const otherIncomeAgg = await Income.aggregate([
-            { $match: { date: { $gte: start, $lte: end } } },
+            { $match: { date: { $gte: start, $lte: end }, source: { $ne: 'Stone Sales' } } },
             { $group: { _id: "$source", total: { $sum: "$amount" } } }
         ]);
 
@@ -509,6 +510,7 @@ exports.getDashboardSummary = async (req, res, next) => {
 
         // 2. Sales By Category (Donut)
         const salesByCategoryAgg = await Sales.aggregate([
+            { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
             { $unwind: "$items" },
             { $group: { _id: "$items.item", total: { $sum: "$items.amount" } } },
             { $sort: { total: -1 } },
@@ -524,6 +526,9 @@ exports.getDashboardSummary = async (req, res, next) => {
         todayEnd.setHours(23, 59, 59, 999);
 
         // 4. KPIs (Cards)
+        const activeLabours = await Labour.find({ status: 'active' }).select('_id');
+        const activeLabourIds = activeLabours.map(l => l._id);
+
         const [monthIncome, monthExpense, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
@@ -539,7 +544,11 @@ exports.getDashboardSummary = async (req, res, next) => {
                     { permitExpiryDate: { $lte: thirtyDaysLater } }
                 ]
             }).limit(5),
-            Attendance.countDocuments({ date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ['Present', 'Half Day'] } }),
+            Attendance.countDocuments({
+                date: { $gte: todayStart, $lte: todayEnd },
+                status: { $in: ['Present', 'Half Day'] },
+                labour: { $in: activeLabourIds }
+            }),
             Vehicle.countDocuments({ status: 'active' })
         ]);
 
