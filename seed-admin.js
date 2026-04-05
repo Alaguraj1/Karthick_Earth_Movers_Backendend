@@ -17,10 +17,10 @@ const seedAdmin = async () => {
         } else {
             // Create Owner
             await User.create({
-                name: 'System Owner',
-                username: 'owner',
-                email: 'owner@karthickearthmovers.com',
-                password: 'ownerpassword123',
+                name: 'System Developer',
+                username: 'developer',
+                email: 'alaguraj.webdeveloper@gmail.com',
+                password: 'Alaguraj@2026',
                 role: 'Owner'
             });
             console.log('Owner user created: username: owner, password: ownerpassword123');
