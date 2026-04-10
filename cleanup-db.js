@@ -15,7 +15,7 @@ const fullWipe = async () => {
 
         for (const collection of collections) {
             const collectionName = collection.name;
-            
+
             // Skip system collections
             if (collectionName.startsWith('system.')) continue;
 
@@ -24,22 +24,22 @@ const fullWipe = async () => {
         }
 
         console.log('\n--- ALL DATA WIPED SUCCESSFULLY ---');
-        
+
         console.log('\nRe-seeding essential admin accounts...');
-        
+
         // This is a direct copy of seed-admin.js logic to ensure access
         const User = require('./models/User');
         await User.create({
-            name: 'System Owner',
-            username: 'owner',
-            email: 'owner@karthickearthmovers.com',
-            password: 'ownerpassword123',
+            name: 'System Developer',
+            username: 'developer',
+            email: 'alaguraj.webdeveloper@gmail.com',
+            password: 'Alaguraj@2026',
             role: 'Owner'
         });
-        
+
         console.log('Essential admin user re-created:');
-        console.log('Username: owner');
-        console.log('Password: ownerpassword123');
+        console.log('Username: developer');
+        console.log('Password: Alaguraj@2026');
 
         await mongoose.connection.close();
         console.log('\nFull wipe complete. Your database is now fresh and ready for use.');
